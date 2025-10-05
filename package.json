@@ -13,8 +13,7 @@
     "db:studio": "prisma studio",
     "db:push": "prisma db push && npm run db:seed",
     "db:seed": "tsx prisma/seed.ts",
-    "db:generate": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "db:generate": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
