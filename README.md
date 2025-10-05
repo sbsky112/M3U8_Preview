@@ -369,11 +369,25 @@ npm start
 
 ### 方式三：部署到 Vercel
 
+> 📖 **详细指南**: 查看 [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) 获取完整 Vercel 部署指南
+
+**快速步骤：**
+
 1. 将代码推送到 GitHub
 2. 在 Vercel 中导入项目
-3. 配置环境变量
-4. 连接 PostgreSQL 数据库（推荐使用 Vercel Postgres 或 Supabase）
+3. 配置环境变量（**重要！**）:
+   ```bash
+   DATABASE_URL=你的PostgreSQL连接字符串
+   NEXTAUTH_URL=https://your-project-name.vercel.app  # 必须是实际域名！
+   NEXTAUTH_SECRET=运行 openssl rand -base64 32 生成
+   ```
+4. 连接 PostgreSQL 数据库（推荐使用 Vercel Postgres、Supabase 或 Railway）
 5. 部署
+6. 运行数据库初始化（见 VERCEL_DEPLOYMENT.md）
+
+**⚠️ 常见错误：**
+- `404 NOT_FOUND`: 检查 `NEXTAUTH_URL` 是否设置为正确的 Vercel 域名（不是 localhost）
+- 无法登录: 检查 `NEXTAUTH_SECRET` 是否设置
 
 ### 环境变量配置
 
