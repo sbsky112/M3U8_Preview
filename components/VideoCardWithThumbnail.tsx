@@ -16,7 +16,7 @@ interface VideoCardWithThumbnailProps {
   createdAt: string
   user: {
     name: string | null
-    email: string
+    username: string
   }
   onDelete?: (id: string) => void
   autoExtract?: boolean // 是否自动提取封面
@@ -89,68 +89,76 @@ export default function VideoCardWithThumbnail({
   }
 
   return (
-    <div className="video-card bg-white rounded-lg shadow-md overflow-hidden">
+    <div className="video-card bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 w-full h-full flex flex-col">
       <Link href={`/videos/${id}`}>
-        <div className="relative aspect-video bg-gray-200">
+        <div className="relative aspect-video bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden group">
           <img
             src={thumbnail || defaultThumbnail}
             alt={title}
-            className={`w-full h-full object-cover transition-opacity ${
+            className={`w-full h-full object-cover transition-all duration-500 ${
               isExtracting ? 'opacity-50' : 'opacity-100'
-            }`}
+            } group-hover:scale-110`}
           />
+          
+          {/* 渐变遮罩 */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          
+          {/* 播放按钮 */}
+          {!isExtracting && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="w-16 h-16 bg-white/95 rounded-full flex items-center justify-center backdrop-blur-sm shadow-2xl transform group-hover:scale-110 transition-transform">
+                <svg className="w-8 h-8 text-blue-600 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                </svg>
+              </div>
+            </div>
+          )}
           
           {/* 提取中的加载动画 */}
           {isExtracting && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-                <p className="text-white text-xs mt-2">提取封面中...</p>
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-white/30 border-t-white mx-auto"></div>
+                <p className="text-white text-sm font-medium mt-3">✨ 提取封面中...</p>
               </div>
             </div>
           )}
 
           {/* 提取失败的提示 */}
           {extractError && !thumbnail && (
-            <div className="absolute bottom-2 left-2 right-2">
-              <div className="bg-red-500 bg-opacity-90 text-white text-xs px-2 py-1 rounded">
+            <div className="absolute bottom-3 left-3 right-3">
+              <div className="bg-red-500/90 backdrop-blur-sm text-white text-xs px-3 py-2 rounded-lg shadow-lg flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 封面提取失败
               </div>
             </div>
           )}
-
-          <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-opacity" />
         </div>
       </Link>
       
-      <div className="p-4">
+      <div className="p-3 sm:p-4 md:p-5 flex-1 flex flex-col">
         <Link href={`/videos/${id}`}>
-          <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors line-clamp-2 mb-2">
+          <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 hover:text-blue-600 transition-colors line-clamp-2 mb-1 sm:mb-2">
             {title}
           </h3>
         </Link>
         
         {description && (
-          <p className="text-sm text-gray-600 line-clamp-2 mb-3">{description}</p>
+          <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 mb-2 sm:mb-3 md:mb-4">{description}</p>
         )}
         
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span className="truncate">{user.name || user.email}</span>
-          <span className="whitespace-nowrap ml-2">
-            {format(new Date(createdAt), 'yyyy-MM-dd HH:mm', {
+        <div className="flex items-center justify-between text-[10px] sm:text-xs mt-auto">
+          <div className="flex items-center min-w-0 flex-1">
+            <span className="text-gray-700 font-medium truncate">{user.name || user.username}</span>
+          </div>
+          <span className="text-gray-500 bg-blue-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs whitespace-nowrap ml-1 sm:ml-2">
+            {format(new Date(createdAt), 'yyyy-MM-dd HH:mm:ss', {
               locale: zhCN,
             })}
           </span>
         </div>
-
-        {onDelete && (
-          <button
-            onClick={() => onDelete(id)}
-            className="mt-3 w-full bg-red-50 text-red-600 py-2 px-4 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-          >
-            删除视频
-          </button>
-        )}
       </div>
     </div>
   )

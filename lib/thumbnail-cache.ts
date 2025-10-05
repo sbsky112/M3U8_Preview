@@ -5,7 +5,7 @@
 
 const CACHE_PREFIX = 'video_thumbnail_'
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000 // 7天过期
-const MAX_CACHE_SIZE = 50 // 最多缓存 50 个封面
+const MAX_CACHE_SIZE = 500 // 最多缓存 500 个封面
 
 // 内存缓存，用于快速访问
 const memoryCache = new Map<string, string>()

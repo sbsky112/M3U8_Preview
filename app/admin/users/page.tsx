@@ -168,21 +168,17 @@ export default function UsersManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleUpdateRole(user.id, user.username, e.target.value)}
-                        disabled={user.username === 'admin'}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      <span
+                        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
                           user.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-800'
-                        } ${user.username === 'admin' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        }`}
                       >
-                        <option value="user">普通用户</option>
-                        <option value="admin">管理员</option>
-                      </select>
+                        {user.role === 'admin' ? '管理员' : '普通用户'}
+                      </span>
                       {user.username === 'admin' && (
-                        <div className="text-xs text-purple-600 mt-1">默认管理员</div>
+                        <div className="text-xs text-blue-600 mt-1">默认管理员</div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

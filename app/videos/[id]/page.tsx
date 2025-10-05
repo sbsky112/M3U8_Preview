@@ -39,16 +39,29 @@ export default function VideoDetailPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && params.id) {
-      fetchVideo()
+      const abortController = new AbortController()
+      fetchVideo(abortController.signal)
+
+      // 清理函数：取消未完成的请求
+      return () => {
+        abortController.abort()
+      }
     }
   }, [status, params.id])
 
-  const fetchVideo = async () => {
+  const fetchVideo = async (signal?: AbortSignal) => {
     try {
       setLoading(true)
-      const response = await axios.get(`/api/videos/${params.id}`)
+      const response = await axios.get(`/api/videos/${params.id}`, {
+        signal
+      })
       setVideo(response.data)
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略被取消的请求
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        console.log('请求已取消')
+        return
+      }
       console.error('获取视频详情失败:', error)
       alert('视频不存在或已被删除')
       router.push('/videos')
@@ -93,25 +106,46 @@ export default function VideoDetailPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
+        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 md:p-6">
+          {/* 返回按钮 */}
+          <div className="mb-4 sm:mb-5 md:mb-6">
+            <button
+              onClick={() => router.push('/videos')}
+              className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl transition-all font-black shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 text-sm sm:text-base"
+              style={{
+                background: 'linear-gradient(to right, #3b82f6, #2563eb)',
+                color: '#ffffff',
+                border: '2px solid rgba(59, 130, 246, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(to right, #2563eb, #1d4ed8)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(to right, #3b82f6, #2563eb)';
+              }}
+            >
+              ← 返回视频列表
+            </button>
+          </div>
+
           <VideoPlayer
             url={video.m3u8Url}
             title={video.title}
             thumbnail={video.thumbnail}
           />
 
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-5 md:mt-6">
             {video.description && (
-              <p className="text-gray-700 mb-4">{video.description}</p>
+              <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">{video.description}</p>
             )}
 
-            <div className="flex items-center justify-between border-t pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t pt-3 sm:pt-4 gap-3">
               <div>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   上传者: <span className="font-medium">{video.user.name || video.user.username}</span>
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   上传时间: {format(new Date(video.createdAt), 'yyyy-MM-dd HH:mm:ss', {
                     locale: zhCN,
                   })}
@@ -119,32 +153,45 @@ export default function VideoDetailPage() {
               </div>
 
               {video.user.id === (session?.user as any)?.id && (
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 sm:space-x-3">
                   <button
                     onClick={() => router.push(`/videos/${params.id}/edit`)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl transition-all font-black shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 text-sm sm:text-base"
+                    style={{
+                      background: 'linear-gradient(to right, #3b82f6, #2563eb)',
+                      color: '#ffffff',
+                      border: '2px solid rgba(59, 130, 246, 0.3)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(to right, #2563eb, #1d4ed8)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(to right, #3b82f6, #2563eb)';
+                    }}
                   >
-                    编辑视频
+                    ✏️ 编辑视频
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                    className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl transition-all font-black shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 text-sm sm:text-base"
+                    style={{
+                      background: 'linear-gradient(to right, #ef4444, #dc2626)',
+                      color: '#ffffff',
+                      border: '2px solid rgba(239, 68, 68, 0.3)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(to right, #dc2626, #b91c1c)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(to right, #ef4444, #dc2626)';
+                    }}
                   >
-                    删除视频
+                    🗑️ 删除视频
                   </button>
                 </div>
               )}
             </div>
           </div>
-        </div>
-
-        <div className="mt-6">
-          <button
-            onClick={() => router.push('/videos')}
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            ← 返回视频列表
-          </button>
         </div>
       </main>
     </div>
