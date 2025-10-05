@@ -7,15 +7,23 @@ WORKDIR /app
 
 # 复制 package 文件
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # 阶段 2: 构建应用
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# 复制依赖
-COPY --from=deps /app/node_modules ./node_modules
+# 接收构建参数
+ARG DATABASE_URL
+
+# 设置构建时环境变量
+ENV DATABASE_URL=${DATABASE_URL}
+
+# 复制源代码（包括 Prisma schema）
 COPY . .
+
+# 安装所有依赖（包括开发依赖）
+RUN npm install
 
 # 生成 Prisma Client
 RUN npx prisma generate
@@ -32,6 +40,9 @@ WORKDIR /app
 
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+
+# 安装 OpenSSL 和其他必要的系统依赖
+RUN apk add --no-cache openssl openssl1.1-compat
 
 # 创建非 root 用户
 RUN addgroup --system --gid 1001 nodejs

@@ -6,10 +6,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # 传递构建时需要的环境变量
+        DATABASE_URL: ${DATABASE_URL}
     container_name: m3u8_app
     restart: unless-stopped
-    ports:
-      - "${APP_PORT:-3000}:3000"
+    network_mode: host
     environment:
       # 数据库连接 - 使用外部 PostgreSQL
       DATABASE_URL: ${DATABASE_URL}
@@ -22,7 +24,7 @@ services:
       PORT: 3000
     command: >
       sh -c "
-        npx prisma migrate deploy &&
+        npx prisma db push &&
         npx prisma db seed &&
         node server.js
       "

@@ -38,9 +38,9 @@ export default function VideoPlayer({ url, title, thumbnail }: VideoPlayerProps)
             container: containerRef.current,
             video: {
               url: url,
-              type: 'customHls',
+              type: 'hls' as any,
               customType: {
-                customHls: function (video: HTMLVideoElement, player: any) {
+                hls: function (video: HTMLVideoElement, player: any) {
                   const hls = new Hls({
                     enableWorker: true,
                     lowLatencyMode: false,

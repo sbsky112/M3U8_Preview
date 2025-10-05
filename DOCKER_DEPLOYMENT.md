@@ -28,7 +28,12 @@ openssl rand -base64 32
 
 ```bash
 # 外部 PostgreSQL 数据库连接
-DATABASE_URL="postgresql://username:password@host:port/database?schema=public"
+
+# 使用主机网络模式，直接连接主机上的数据库
+DATABASE_URL="postgresql://video:jZixWkjHLW2cLwnN@localhost:5432/video?schema=public"
+
+# 如果 PostgreSQL 运行在其他服务器上，使用实际 IP 或域名：
+# DATABASE_URL="postgresql://video:jZixWkjHLW2cLwnN@server-ip:5432/video?schema=public"
 
 # 应用端口配置（可选，默认为 3000）
 APP_PORT=3000
@@ -39,11 +44,36 @@ NEXTAUTH_SECRET=your-generated-secret-here
 ```
 
 **重要：**
-- 必须设置 `DATABASE_URL` 为您的外部 PostgreSQL 数据库连接字符串
+- 当前配置使用主机网络模式，容器直接使用主机的网络栈
+- 可以使用 `localhost` 连接主机上的数据库，避免权限问题
 - `APP_PORT` 是可选的，用于指定应用在主机上监听的端口（默认为 3000）
 - `NEXTAUTH_URL` 会自动根据 `APP_PORT` 设置，通常不需要手动修改
 
-### 3. 启动服务
+### 3. 初始化数据库权限（可选）
+
+如果遇到数据库权限问题，可以运行以下脚本初始化权限：
+
+```bash
+# 确保已设置 DATABASE_URL 环境变量
+# 运行数据库权限初始化脚本
+chmod +x scripts/init-db.sh
+./scripts/init-db.sh
+```
+
+或者手动在 PostgreSQL 中设置权限：
+
+```sql
+-- 以 postgres 用户登录
+psql -U postgres -d video
+
+-- 授予权限
+GRANT CREATE ON SCHEMA public TO video;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO video;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO video;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO video;
+```
+
+### 4. 启动服务
 
 ```bash
 # 构建并启动应用
@@ -56,7 +86,7 @@ docker compose logs -f
 docker compose down
 ```
 
-### 4. 访问应用
+### 5. 访问应用
 
 打开浏览器访问：[http://localhost:3000](http://localhost:3000)（或您在 `APP_PORT` 中设置的端口）
 
@@ -70,9 +100,12 @@ docker compose down
 
 - 容器名：`m3u8_app`
 - 端口：`3000`
+- 网络：使用主机网络模式 (host)
 - 自动运行数据库迁移和初始化
 - 自动创建默认管理员账号
 - 连接到外部 PostgreSQL 数据库
+
+**注意**：使用主机网络模式可以让容器直接访问主机上的数据库，避免权限问题。
 
 ## 自定义配置
 
@@ -139,6 +172,42 @@ ports:
    docker compose exec app npx prisma db pull
    ```
 
+### 数据库权限问题
+
+如果遇到 `permission denied for schema public` 或 `ERROR: permission denied for schema public` 错误：
+
+1. **检查数据库用户权限**：
+  - 确保数据库用户具有创建表的权限
+  - 使用具有足够权限的用户（如 postgres 超级用户）进行初始化
+
+2. **手动授予权限**：
+  ```sql
+  -- 以 postgres 用户登录 PostgreSQL
+  psql -U postgres -d video
+  
+  -- 授予权限
+  GRANT CREATE ON SCHEMA public TO video;
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO video;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO video;
+  
+  -- 设置默认权限
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO video;
+  ```
+
+3. **使用超级用户初始化**：
+  - 临时使用 postgres 超级用户进行初始化
+  - 初始化完成后可以切换回普通用户
+
+4. **检查数据库所有者**：
+  ```sql
+  -- 检查数据库所有者
+  SELECT datname, datdba, (SELECT rolname FROM pg_roles WHERE oid = datdba) AS owner
+  FROM pg_database WHERE datname = 'video';
+  
+  -- 如果需要，更改数据库所有者
+  ALTER DATABASE video OWNER TO video;
+  ```
+
 ### 端口冲突
 
 如果端口被占用，修改 `docker-compose.yml` 中的端口映射。
@@ -150,6 +219,31 @@ ports:
 1. 检查防火墙设置
 2. 确保数据库允许来自 Docker 网络的连接
 3. 验证数据库主机名和端口是否正确
+
+#### 连接主机上的 PostgreSQL
+
+使用主机网络模式连接主机上的 PostgreSQL：
+
+1. **优势**：
+   - 容器直接使用主机的网络栈
+   - 可以使用 `localhost` 连接主机上的数据库
+   - 避免了网络权限问题，特别适合宝塔面板等环境
+
+2. **配置说明**：
+   - 使用 `network_mode: host` 配置
+   - 数据库连接使用 `localhost` 而不是特殊主机名
+   - 适用于宝塔面板等环境创建的数据库用户
+
+3. **测试连接**：
+   ```bash
+   # 在容器内测试连接
+   docker compose exec app npx prisma db pull
+   ```
+
+4. **注意事项**：
+   - 容器将直接绑定到主机的端口
+   - 确保主机上的端口没有被其他服务占用
+   - 适用于单主机部署场景
 
 ## 生产环境部署
 

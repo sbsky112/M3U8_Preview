@@ -4,6 +4,10 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasAdminAccess } from '@/lib/permissions'
 
+// 强制动态渲染
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 // 获取统计信息（管理员）
 export async function GET(request: Request) {
   try {

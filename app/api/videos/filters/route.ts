@@ -3,6 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+// 强制动态渲染
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 // 获取筛选器选项（作者列表、分类列表）
 export async function GET() {
   try {

@@ -5,6 +5,10 @@ import { hasAdminAccess } from '@/lib/permissions'
 import { getAllSystemSettings, setSystemSetting, SystemSettingKey } from '@/lib/system-settings'
 import { z } from 'zod'
 
+// 强制动态渲染
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 const updateSettingsSchema = z.object({
   registration_enabled: z.string().optional(),
   site_name: z.string().optional(),
