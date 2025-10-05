@@ -14,6 +14,8 @@ interface VideoCardWithThumbnailProps {
   m3u8Url: string
   thumbnail?: string
   createdAt: string
+  author?: string | null
+  category?: string | null
   user: {
     name: string | null
     username: string
@@ -29,6 +31,8 @@ export default function VideoCardWithThumbnail({
   m3u8Url,
   thumbnail: initialThumbnail,
   createdAt,
+  author,
+  category,
   user,
   onDelete,
   autoExtract = true,
@@ -89,7 +93,7 @@ export default function VideoCardWithThumbnail({
   }
 
   return (
-    <div className="video-card bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 w-full h-full flex flex-col">
+    <div className="video-card card-hover bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 w-full h-full flex flex-col">
       <Link href={`/videos/${id}`}>
         <div className="relative aspect-video bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden group">
           <img
@@ -144,6 +148,28 @@ export default function VideoCardWithThumbnail({
             {title}
           </h3>
         </Link>
+        
+        {/* 作者和分类 */}
+        {(author || category) && (
+          <div className="flex items-center gap-2 mb-2">
+            {author && (
+              <span className="inline-flex items-center px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] sm:text-xs font-medium">
+                <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {author}
+              </span>
+            )}
+            {category && (
+              <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] sm:text-xs font-medium">
+                <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                {category}
+              </span>
+            )}
+          </div>
+        )}
         
         {description && (
           <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 mb-2 sm:mb-3 md:mb-4">{description}</p>

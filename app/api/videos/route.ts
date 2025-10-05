@@ -10,6 +10,8 @@ const videoSchema = z.object({
   m3u8Url: z.string().url('无效的 M3U8 链接'),
   thumbnail: z.string().optional(),
   duration: z.number().optional(),
+  author: z.string().optional(),
+  category: z.string().optional(),
 })
 
 // 获取视频列表
@@ -25,9 +27,62 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
+    
+    // 搜索和筛选参数
+    const search = searchParams.get('search') || ''
+    const exactMatch = searchParams.get('exactMatch') === 'true'
+    const category = searchParams.get('category') || ''
+    const author = searchParams.get('author') || ''
+    const startDate = searchParams.get('startDate') || ''
+    const endDate = searchParams.get('endDate') || ''
+
+    // 构建查询条件
+    const where: any = {}
+    
+    // 标题搜索
+    if (search) {
+      if (exactMatch) {
+        // 精确匹配
+        where.title = {
+          equals: search,
+          mode: 'insensitive',
+        }
+      } else {
+        // 模糊匹配
+        where.title = {
+          contains: search,
+          mode: 'insensitive',
+        }
+      }
+    }
+    
+    // 分类筛选
+    if (category) {
+      where.category = category
+    }
+    
+    // 作者筛选
+    if (author) {
+      where.author = author
+    }
+    
+    // 时间区间筛选
+    if (startDate || endDate) {
+      where.createdAt = {}
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate)
+      }
+      if (endDate) {
+        // 包含当天的结束时间
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        where.createdAt.lte = endDateTime
+      }
+    }
 
     const [videos, total] = await Promise.all([
       prisma.video.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -41,7 +96,7 @@ export async function GET(request: Request) {
           },
         },
       }),
-      prisma.video.count(),
+      prisma.video.count({ where }),
     ])
 
     return NextResponse.json({

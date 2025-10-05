@@ -25,6 +25,8 @@ model Video {
   m3u8Url     String
   thumbnail   String?
   duration    Int?     // 时长（秒）
+  author      String?  // 作者名
+  category    String?  // 分类
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   userId      String
@@ -32,6 +34,8 @@ model Video {
   
   @@index([userId])
   @@index([createdAt])
+  @@index([category])
+  @@index([author])
 }
 
 model SystemSetting {

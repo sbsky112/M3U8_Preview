@@ -7,6 +7,7 @@ import axios from 'axios'
 import Navbar from '@/components/Navbar'
 import ThumbnailExtractor from '@/components/ThumbnailExtractor'
 import { hasAdminAccess } from '@/lib/permissions'
+import { parseVideoTitle } from '@/lib/video-parser'
 
 export default function UploadVideoPage() {
   const { data: session, status } = useSession()
@@ -16,7 +17,10 @@ export default function UploadVideoPage() {
     description: '',
     m3u8Url: '',
     thumbnail: '',
+    category: '',
   })
+  const [extractedAuthor, setExtractedAuthor] = useState<string | null>(null)
+  const [categories, setCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -28,6 +32,24 @@ export default function UploadVideoPage() {
       router.push('/videos')
     }
   }, [status, session, router])
+
+  // 获取分类列表
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchCategories()
+    }
+  }, [status])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/admin/categories')
+      setCategories(response.data.categories)
+    } catch (error) {
+      console.error('获取分类列表失败:', error)
+      // 使用默认分类
+      setCategories(['影视', '动漫', '综艺', '纪录片', '教育', '音乐', '游戏', '体育', '科技', '生活', '美食', '旅游', '其他'])
+    }
+  }
 
   if (status === 'loading' || !session) {
     return (
@@ -48,12 +70,19 @@ export default function UploadVideoPage() {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
+    const { name, value } = e.target
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     })
+
+    // 当标题改变时，自动提取作者名
+    if (name === 'title') {
+      const { author } = parseVideoTitle(value)
+      setExtractedAuthor(author)
+    }
   }
 
   const handleThumbnailExtracted = (dataUrl: string) => {
@@ -74,7 +103,18 @@ export default function UploadVideoPage() {
 
     try {
       setLoading(true)
-      await axios.post('/api/videos', formData)
+      
+      // 提取作者名并清理标题
+      const { cleanTitle, author } = parseVideoTitle(formData.title)
+      
+      const submitData = {
+        ...formData,
+        title: cleanTitle,
+        author: author || undefined,
+        category: formData.category || undefined,
+      }
+      
+      await axios.post('/api/videos', submitData)
       alert('视频上传成功！')
       router.push('/videos')
     } catch (error: any) {
@@ -111,8 +151,39 @@ export default function UploadVideoPage() {
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="输入视频标题"
+                placeholder="输入视频标题（如：精彩视频-作者名）"
               />
+              {extractedAuthor && (
+                <p className="mt-2 text-sm text-green-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  已识别作者：<span className="font-medium ml-1">{extractedAuthor}</span>
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                提示：在标题末尾添加 "-作者名" 或 "-[作者名]" 可自动识别作者
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+                视频分类
+              </label>
+              <select
+                id="category"
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">请选择分类</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

@@ -15,6 +15,8 @@ interface Video {
   m3u8Url: string
   thumbnail?: string
   createdAt: string
+  author?: string
+  category?: string
   user: {
     id: string
     name: string | null
@@ -40,6 +42,17 @@ export default function VideosPage() {
     return 4
   }) // 每行显示的列数
   const [actualCols, setActualCols] = useState<number>(4) // 实际显示的列数
+  
+  // 搜索和筛选状态
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [exactMatch, setExactMatch] = useState(false) // 精确搜索
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedAuthor, setSelectedAuthor] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [categories, setCategories] = useState<string[]>([])
+  const [authors, setAuthors] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -68,17 +81,44 @@ export default function VideosPage() {
     return () => window.removeEventListener('resize', updateCols)
   }, [gridLayout])
 
+  // 筛选器变化时自动搜索（不包括搜索关键词）
   useEffect(() => {
     if (status === 'authenticated') {
       fetchVideos()
     }
-  }, [status, page, gridLayout])
+  }, [status, page, gridLayout, selectedCategory, selectedAuthor, startDate, endDate])
 
-  const fetchVideos = async () => {
+  // 只在初始加载时获取筛选器选项
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchFilters()
+    }
+  }, [status])
+
+  const fetchVideos = async (customSearchKeyword?: string) => {
     try {
       setLoading(true)
       const limit = gridLayout * 3 // 根据列数计算每页显示数量（3行）
-      const response = await axios.get(`/api/videos?page=${page}&limit=${limit}`)
+      
+      // 使用传入的搜索关键词或当前状态的关键词
+      const keyword = customSearchKeyword !== undefined ? customSearchKeyword : searchKeyword
+      
+      // 构建查询参数
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      })
+      
+      if (keyword) {
+        params.append('search', keyword)
+        params.append('exactMatch', exactMatch.toString())
+      }
+      if (selectedCategory) params.append('category', selectedCategory)
+      if (selectedAuthor) params.append('author', selectedAuthor)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      
+      const response = await axios.get(`/api/videos?${params.toString()}`)
       setVideos(response.data.videos)
       setTotalPages(response.data.pagination.totalPages)
       setTotalVideos(response.data.pagination.total)
@@ -90,6 +130,33 @@ export default function VideosPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchFilters = async () => {
+    try {
+      const response = await axios.get('/api/videos/filters')
+      setCategories(response.data.categories)
+      setAuthors(response.data.authors)
+    } catch (error) {
+      console.error('获取筛选器选项失败:', error)
+    }
+  }
+
+  const handleSearch = () => {
+    setPage(1) // 重置到第一页
+    fetchVideos()
+  }
+
+  const handleClearFilters = () => {
+    setSearchKeyword('')
+    setExactMatch(false)
+    setSelectedCategory('')
+    setSelectedAuthor('')
+    setStartDate('')
+    setEndDate('')
+    setPage(1)
+    // 清空后使用空字符串搜索
+    fetchVideos('')
   }
 
   const updateCacheStats = () => {
@@ -120,13 +187,13 @@ export default function VideosPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-transition">
       <Navbar />
       
       <main className="container mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-10" style={{ maxWidth: '100%' }}>
         {/* 页面标题 */}
-        <div className="mb-4 sm:mb-6 md:mb-10">
-          <div className="glass-effect rounded-xl sm:rounded-2xl p-3 sm:p-5 md:p-8 shadow-xl">
+        <div className="mb-4 sm:mb-6 md:mb-10 animate-fade-in">
+          <div className="glass-effect rounded-xl sm:rounded-2xl p-3 sm:p-5 md:p-8 shadow-xl card-hover">
             <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl sm:text-2xl md:text-4xl font-bold gradient-text mb-2 sm:mb-3">🎬 视频库</h1>
@@ -159,6 +226,7 @@ export default function VideosPage() {
                   )}
                 </div>
               </div>
+
 
               {/* 布局选择器 - 桌面端显示 */}
               <div className="hidden md:flex items-center space-x-2">
@@ -213,9 +281,285 @@ export default function VideosPage() {
           </div>
         </div>
 
+        {/* 搜索和筛选区域 */}
+        <div className="mb-6">
+          {/* 标题栏 - 始终显示 */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 border-2 border-blue-200 flex items-center justify-center shadow-sm">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-blue-900">搜索与筛选</h3>
+                <p className="text-xs text-blue-600">快速找到您想要的视频</p>
+              </div>
+            </div>
+            
+            {/* 折叠/展开按钮 */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
+            >
+              <span className="text-sm font-bold hidden sm:inline">
+                {showFilters ? '隐藏筛选' : '显示筛选'}
+              </span>
+              <svg 
+                className={`w-5 h-5 transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`}
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* 筛选内容区 */}
+          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showFilters ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(239,246,255,0.98) 100%)',
+                backdropFilter: 'blur(10px)',
+                border: '2px solid rgba(59,130,246,0.2)'
+              }}
+            >
+              {/* 装饰性背景 */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100/40 to-blue-200/30 rounded-full blur-3xl -z-10" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-50/40 to-blue-100/30 rounded-full blur-3xl -z-10" />
+              
+              <div className="relative p-5 sm:p-7">
+
+              {/* 搜索框 */}
+              <div className="mb-5">
+                <div className="flex gap-3">
+                  <div className="flex-1 relative group">
+                    <input
+                      type="text"
+                      value={searchKeyword}
+                      onChange={(e) => setSearchKeyword(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      placeholder="输入标题关键词..."
+                      className="w-full px-4 py-3 pl-11 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md group-hover:border-gray-300"
+                    />
+                    <div className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 group-hover:text-blue-500 transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSearch}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all text-sm font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 whitespace-nowrap"
+                  >
+                    <span className="hidden sm:inline">🔍 搜索</span>
+                    <span className="sm:hidden">🔍</span>
+                  </button>
+                </div>
+                
+                {/* 精确搜索选项 */}
+                <div className="mt-3 flex items-center">
+                  <label className="flex items-center cursor-pointer group px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={exactMatch}
+                        onChange={(e) => setExactMatch(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
+                      />
+                    </div>
+                    <span className="ml-2.5 text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
+                      ⚡ 精确搜索（完全匹配标题）
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 分隔线 */}
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t-2 border-blue-200"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="px-4 py-1.5 bg-blue-500 text-xs font-bold text-white rounded-full shadow-md">
+                    高级筛选
+                  </span>
+                </div>
+              </div>
+
+              {/* 筛选器 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 分类筛选 */}
+                <div className="group">
+                  <label className="flex items-center text-xs font-bold text-blue-900 mb-2">
+                    <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    视频分类
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => {
+                        setSelectedCategory(e.target.value)
+                        setPage(1)
+                      }}
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="">🎬 全部分类</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 作者筛选 */}
+                <div className="group">
+                  <label className="flex items-center text-xs font-bold text-blue-900 mb-2">
+                    <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    视频作者
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedAuthor}
+                      onChange={(e) => {
+                        setSelectedAuthor(e.target.value)
+                        setPage(1)
+                      }}
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="">👤 全部作者</option>
+                      {authors.map((author) => (
+                        <option key={author} value={author}>
+                          {author}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 开始日期 */}
+                <div className="group">
+                  <label className="flex items-center text-xs font-bold text-blue-900 mb-2">
+                    <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    开始日期
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value)
+                      setPage(1)
+                    }}
+                    className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer"
+                  />
+                </div>
+
+                {/* 结束日期 */}
+                <div className="group">
+                  <label className="flex items-center text-xs font-bold text-blue-900 mb-2">
+                    <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    结束日期
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value)
+                      setPage(1)
+                    }}
+                    className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* 活动筛选条件显示和清空按钮 */}
+              {(searchKeyword || exactMatch || selectedCategory || selectedAuthor || startDate || endDate) && (
+                <div className="mt-5 pt-5 border-t-2 border-blue-200">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-bold text-blue-900">当前筛选：</span>
+                    
+                    {searchKeyword && (
+                      <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        {searchKeyword}
+                        {exactMatch && <span className="ml-1">⚡</span>}
+                      </span>
+                    )}
+                    
+                    {selectedCategory && (
+                      <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        {selectedCategory}
+                      </span>
+                    )}
+                    
+                    {selectedAuthor && (
+                      <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {selectedAuthor}
+                      </span>
+                    )}
+                    
+                    {(startDate || endDate) && (
+                      <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {startDate || '...'} ~ {endDate || '...'}
+                      </span>
+                    )}
+                    
+                    <button
+                      onClick={handleClearFilters}
+                      className="ml-auto px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all text-xs font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      清空全部
+                    </button>
+                  </div>
+                </div>
+              )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* 视频内容 */}
         {videos.length === 0 ? (
-          <div className="glass-effect rounded-xl sm:rounded-2xl p-8 sm:p-12 md:p-16 text-center shadow-xl">
+          <div className="glass-effect rounded-xl sm:rounded-2xl p-8 sm:p-12 md:p-16 text-center shadow-xl animate-scale-in">
             <div className="max-w-md mx-auto">
               <div 
                 className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6"
@@ -258,12 +602,17 @@ export default function VideosPage() {
                 gridAutoRows: '1fr'
               }}
             >
-              {videos.map((video) => (
-                <VideoCardWithThumbnail
+              {videos.map((video, index) => (
+                <div
                   key={video.id}
-                  {...video}
-                  autoExtract={true}
-                />
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <VideoCardWithThumbnail
+                    {...video}
+                    autoExtract={true}
+                  />
+                </div>
               ))}
             </div>
 

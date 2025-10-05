@@ -12,6 +12,8 @@ const batchVideoSchema = z.object({
       m3u8Url: z.string().url('无效的 M3U8 链接'),
       thumbnail: z.string().optional(),
       duration: z.number().optional(),
+      author: z.string().optional(),
+      category: z.string().optional(),
     })
   ),
 })

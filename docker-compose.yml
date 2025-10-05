@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: m3u8_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: m3u8user
+      POSTGRES_PASSWORD: m3u8password
+      POSTGRES_DB: m3u8_preview
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - m3u8_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U m3u8user -d m3u8_preview"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js 应用
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: m3u8_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 数据库连接
+      DATABASE_URL: postgresql://m3u8user:m3u8password@postgres:5432/m3u8_preview?schema=public
+      # NextAuth 配置
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-to-a-random-secret-in-production}
+      # Node 环境
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - m3u8_network
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npx prisma db seed &&
+        node server.js
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  m3u8_network:
+    driver: bridge

@@ -2,23 +2,31 @@
 
 基于 Next.js + Prisma + PostgreSQL 构建的 M3U8 视频浏览和管理平台。
 
+[![Docker](https://img.shields.io/badge/Docker-支持-2496ED?logo=docker&logoColor=white)](./DOCKER_DEPLOYMENT.md)
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+
 ## 功能特性
 
+### 核心功能
+- ✅ **Docker 一键部署**（包含数据库和应用）🐳
 - ✅ 用户认证系统（注册/登录）
-- ✅ 需要登录才能访问网站内容
-- ✅ **默认管理员账号**（admin/admin123，自动初始化）🔐
 - ✅ **管理员系统**（后台管理、用户管理、权限控制）🛡️
-- ✅ **视频编辑功能**（修改标题、描述、链接、封面）✏️
-- ✅ **密码修改功能**（所有用户可修改密码）🔑
-- ✅ **用户权限管理**（唯一管理员制度）
+- ✅ **视频批量管理**（批量删除、批量修改分类）📦
 - ✅ DPlayer 播放器集成，支持 M3U8 视频播放
 - ✅ 视频管理（上传、编辑、删除）
 - ✅ 批量导入视频功能
+
+### 高级功能
+- ✅ **作者和分类系统**（自动识别作者、分类管理）🏷️
+- ✅ **搜索和筛选**（标题搜索、分类、作者、时间筛选）🔍
 - ✅ **客户端视频封面提取**（无需服务端 ffmpeg）
 - ✅ **智能缓存系统**（双层缓存，二次访问 < 50ms）⚡
 - ✅ **首页自动提取封面**（自动提取并缓存）
 - ✅ 实时封面预览和自定义提取时间点
-- ✅ 响应式设计，美观的现代化 UI
+- ✅ **多种布局选择**（2-6列灵活布局）📱
+- ✅ 响应式设计，支持移动端和桌面端
+- ✅ 美观的现代化 UI 和流畅动画效果
 - ✅ 视频列表分页
 
 ## 技术栈
@@ -32,7 +40,9 @@
 
 ## 快速开始
 
-> 💡 **快速部署：** 查看 [QUICK_START.md](./QUICK_START.md) 获取5分钟快速部署指南
+> 💡 **快速部署：** 
+> - Docker 部署：查看 [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) 获取完整 Docker 部署指南
+> - 传统部署：查看下方步骤或 [QUICK_START.md](./QUICK_START.md)
 
 ### 1. 安装依赖
 
@@ -290,14 +300,74 @@ const thumbnail = await extractM3U8Thumbnail('https://example.com/video.m3u8', 1
 
 ## 部署
 
-### 构建生产版本
+### 方式一：Docker 部署（推荐） 🐳
+
+使用 Docker Compose 一键部署应用和数据库：
+
+**1. 生成密钥**
+
+```bash
+# 生成 NEXTAUTH_SECRET
+openssl rand -base64 32
+```
+
+**2. 创建环境变量文件**
+
+创建 `.env` 文件（或修改 `.env.example`）：
+
+```bash
+NEXTAUTH_SECRET=your-generated-secret-here
+```
+
+**3. 启动服务**
+
+```bash
+# 构建并启动所有服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 停止并删除数据卷（会清空数据库）
+docker-compose down -v
+```
+
+**4. 访问应用**
+
+打开浏览器访问：[http://localhost:3000](http://localhost:3000)
+
+默认管理员账号：
+- 用户名：`admin`
+- 密码：`admin123`
+
+**Docker 部署说明：**
+- 应用运行在端口 `3000`
+- PostgreSQL 运行在端口 `5432`
+- 数据持久化在 Docker volume `postgres_data`
+- 自动运行数据库迁移和初始化
+- 自动创建默认管理员账号
+
+**自定义配置：**
+
+修改 `docker-compose.yml` 中的环境变量：
+- `POSTGRES_USER`: 数据库用户名
+- `POSTGRES_PASSWORD`: 数据库密码
+- `POSTGRES_DB`: 数据库名称
+- `NEXTAUTH_URL`: 应用访问地址（生产环境需修改）
+
+### 方式二：传统部署
+
+**构建生产版本**
 
 \`\`\`bash
 npm run build
 npm start
 \`\`\`
 
-### 部署到 Vercel
+### 方式三：部署到 Vercel
 
 1. 将代码推送到 GitHub
 2. 在 Vercel 中导入项目
@@ -311,7 +381,7 @@ npm start
 
 - `DATABASE_URL`: PostgreSQL 连接字符串
 - `NEXTAUTH_URL`: 应用的 URL
-- `NEXTAUTH_SECRET`: NextAuth 密钥
+- `NEXTAUTH_SECRET`: NextAuth 密钥（使用 `openssl rand -base64 32` 生成）
 
 ## 注意事项
 

@@ -146,12 +146,6 @@ export default function VideoPlayer({ url, title, thumbnail }: VideoPlayerProps)
 
   return (
     <div className="w-full">
-      {title && (
-        <h2 className="text-2xl font-bold mb-4 gradient-text">
-          {title}
-        </h2>
-      )}
-      
       {error ? (
         <div className="w-full aspect-video bg-gradient-to-br from-red-100 to-pink-100 rounded-xl flex items-center justify-center">
           <div className="text-center p-8">

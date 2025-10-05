@@ -6,18 +6,23 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import Navbar from '@/components/Navbar'
 import { hasAdminAccess } from '@/lib/permissions'
+import { parseVideoTitle } from '@/lib/video-parser'
 
 interface VideoInput {
   title: string
   description: string
   m3u8Url: string
   thumbnail: string
+  category?: string
+  author?: string
 }
 
 export default function BatchImportPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [textInput, setTextInput] = useState('')
+  const [category, setCategory] = useState('')
+  const [categories, setCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -29,6 +34,24 @@ export default function BatchImportPage() {
       router.push('/videos')
     }
   }, [status, session, router])
+
+  // 获取分类列表
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchCategories()
+    }
+  }, [status])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/admin/categories')
+      setCategories(response.data.categories)
+    } catch (error) {
+      console.error('获取分类列表失败:', error)
+      // 使用默认分类
+      setCategories(['影视', '动漫', '综艺', '纪录片', '教育', '音乐', '游戏', '体育', '科技', '生活', '美食', '旅游', '其他'])
+    }
+  }
 
   if (status === 'loading' || !session) {
     return (
@@ -62,11 +85,15 @@ export default function BatchImportPage() {
       const parts = line.split('|').map(p => p.trim())
       
       if (parts.length >= 2) {
+        const rawTitle = parts[0]
+        const { cleanTitle, author } = parseVideoTitle(rawTitle)
+        
         videos.push({
-          title: parts[0],
+          title: cleanTitle,
           m3u8Url: parts[1],
           thumbnail: parts[2] || '',
           description: parts[3] || '',
+          author: author || undefined,
         })
       }
     }
@@ -92,7 +119,14 @@ export default function BatchImportPage() {
       }
 
       setLoading(true)
-      const response = await axios.post('/api/videos/batch', { videos })
+      
+      // 为所有视频添加统一的分类
+      const videosWithCategory = videos.map(v => ({
+        ...v,
+        category: category || undefined,
+      }))
+      
+      const response = await axios.post('/api/videos/batch', { videos: videosWithCategory })
       
       alert(`成功导入 ${response.data.count} 个视频！`)
       router.push('/videos')
@@ -103,9 +137,9 @@ export default function BatchImportPage() {
     }
   }
 
-  const exampleText = `示例视频1|https://example.com/video1.m3u8|https://example.com/thumb1.jpg|这是第一个视频
+  const exampleText = `精彩视频1-张三|https://example.com/video1.m3u8|https://example.com/thumb1.jpg|这是第一个视频
 示例视频2|https://example.com/video2.m3u8
-示例视频3|https://example.com/video3.m3u8|https://example.com/thumb3.jpg`
+热门视频3-[李四]|https://example.com/video3.m3u8|https://example.com/thumb3.jpg`
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -139,6 +173,28 @@ export default function BatchImportPage() {
             )}
 
             <div>
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+                统一分类（可选）
+              </label>
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">请选择分类（可不选）</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                选择后将应用到所有导入的视频
+              </p>
+            </div>
+
+            <div>
               <label htmlFor="textInput" className="block text-sm font-medium text-gray-700 mb-2">
                 批量视频信息
               </label>
@@ -146,12 +202,17 @@ export default function BatchImportPage() {
                 id="textInput"
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                rows={15}
+                rows={12}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                placeholder="粘贴视频信息，每行一个视频..."
+                placeholder="粘贴视频信息，每行一个视频... 提示：标题末尾添加 '-作者名' 或 '-[作者名]' 可自动识别作者"
               />
               <p className="mt-2 text-sm text-gray-600">
                 将解析 {parseVideoInput(textInput).length} 个视频
+                {parseVideoInput(textInput).some(v => v.author) && (
+                  <span className="ml-2 text-green-600">
+                    （已自动识别 {parseVideoInput(textInput).filter(v => v.author).length} 个作者）
+                  </span>
+                )}
               </p>
             </div>
 

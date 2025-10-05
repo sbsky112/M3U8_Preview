@@ -53,39 +53,20 @@ export default function SignInPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">欢迎回来</h1>
+          <h1 
+            className="text-3xl sm:text-4xl font-bold mb-2"
+            style={{
+              color: '#1e3a8a',
+              textShadow: '2px 2px 4px rgba(30, 58, 138, 0.3)',
+              fontWeight: '900'
+            }}
+          >
+            欢迎回来
+          </h1>
           <p className="text-blue-600">登录到 M3U8 视频平台</p>
         </div>
 
         <div className="glass-effect rounded-2xl shadow-2xl p-8">
-          {/* 默认管理员提示 */}
-          <div 
-            className="mb-6 border-2 border-blue-300 rounded-xl p-4"
-            style={{
-              background: 'linear-gradient(to right, #eff6ff, #dbeafe)'
-            }}
-          >
-            <div className="flex items-start">
-              <div 
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mr-3"
-                style={{
-                  background: 'linear-gradient(to right, #3b82f6, #2563eb)'
-                }}
-              >
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="text-sm">
-                <p className="font-bold text-blue-900 mb-2">💡 默认管理员账号</p>
-                <div className="space-y-1">
-                  <p className="text-blue-800">用户名: <span className="font-mono font-bold bg-white px-2 py-0.5 rounded">admin</span></p>
-                  <p className="text-blue-800">密码: <span className="font-mono font-bold bg-white px-2 py-0.5 rounded">admin123</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-300 text-red-700 px-4 py-3 rounded-xl flex items-center shadow-lg">
