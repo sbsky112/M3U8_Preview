@@ -1,8 +1,8 @@
-# 多阶段构建 Dockerfile for M3U8 视频预览平台
+# 多阶段构建 Dockerfile for M3U8 视频预览平台 (SQLite版本)
 
 # 阶段 1: 依赖安装
 FROM node:18-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl sqlite
 WORKDIR /app
 
 # 复制 package 文件
@@ -13,11 +13,12 @@ RUN npm install --omit=dev
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# 接收构建参数
-ARG DATABASE_URL
+# 安装 SQLite 和必要的系统依赖
+RUN apk add --no-cache openssl sqlite
 
-# 设置构建时环境变量
-ENV DATABASE_URL=${DATABASE_URL}
+# 设置默认数据库URL（SQLite）
+ENV DATABASE_URL="file:./data/app.db"
+ENV BACKUP_DATABASE_URL="file:./data/app_backup.db"
 
 # 复制源代码（包括 Prisma schema）
 COPY . .
@@ -41,31 +42,38 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# 安装 OpenSSL 和其他必要的系统依赖
-RUN apk add --no-cache openssl openssl1.1-compat
+# 安装必要的系统依赖，包括 SQLite
+RUN apk add --no-cache openssl sqlite
 
-# 创建非 root 用户
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# 创建数据目录
+RUN mkdir -p /app/data /app/data/backups
 
 # 复制必要文件
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 
 # 复制构建产物
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 # 复制 Prisma schema 和生成的 client
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
-USER nextjs
+# 复制初始化脚本及其依赖
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+
+# 使用 root 用户运行（避免权限问题）
+# USER nextjs
 
 EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+ENV DATABASE_URL="file:./data/app.db"
+ENV BACKUP_DATABASE_URL="file:./data/app_backup.db"
 
 CMD ["node", "server.js"]

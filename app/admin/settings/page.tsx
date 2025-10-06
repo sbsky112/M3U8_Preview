@@ -23,7 +23,7 @@ export default function SystemSettingsPage() {
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
     } else if (status === 'authenticated') {
-      if (!hasAdminAccess(session.user)) {
+      if (session?.user?.role !== 'admin') {
         router.push('/videos')
       } else {
         fetchSettings()

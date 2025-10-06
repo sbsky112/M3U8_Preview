@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user || !hasAdminAccess(session.user)) {
+    if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json({ error: '无权限' }, { status: 403 })
     }
 

@@ -9,7 +9,7 @@ import { useState } from 'react'
 export default function Navbar() {
   const { data: session } = useSession()
   const router = useRouter()
-  const isAdmin = hasAdminAccess(session?.user)
+  const isAdmin = session?.user?.role === 'admin'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {

@@ -3,36 +3,18 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
 import VideoCardWithThumbnail from '@/components/VideoCardWithThumbnail'
 import Navbar from '@/components/Navbar'
 import { getCacheStats } from '@/lib/thumbnail-cache'
-
-interface Video {
-  id: string
-  title: string
-  description?: string
-  m3u8Url: string
-  thumbnail?: string
-  createdAt: string
-  author?: string
-  category?: string
-  user: {
-    id: string
-    name: string | null
-    username: string
-  }
-}
+import { useVideoSearch } from '@/hooks/useVideoSearch'
+import { VideoFilters } from '@/types/video'
+import axios from 'axios'
 
 export default function VideosPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [videos, setVideos] = useState<Video[]>([])
-  const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalVideos, setTotalVideos] = useState(0)
-  const [cacheStats, setCacheStats] = useState({ count: 0, memoryCount: 0, totalSize: 0 })
+
+  // 布局状态
   const [gridLayout, setGridLayout] = useState<number>(() => {
     // 从 localStorage 读取保存的布局设置
     if (typeof window !== 'undefined') {
@@ -42,17 +24,30 @@ export default function VideosPage() {
     return 4
   }) // 每行显示的列数
   const [actualCols, setActualCols] = useState<number>(4) // 实际显示的列数
-  
-  // 搜索和筛选状态
-  const [searchKeyword, setSearchKeyword] = useState('')
-  const [exactMatch, setExactMatch] = useState(false) // 精确搜索
-  const [selectedCategory, setSelectedCategory] = useState('')
-  const [selectedAuthor, setSelectedAuthor] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [categories, setCategories] = useState<string[]>([])
-  const [authors, setAuthors] = useState<string[]>([])
+  const [cacheStats, setCacheStats] = useState({ count: 0, memoryCount: 0, totalSize: 0 })
+
+  // 筛选器选项
+  const [filters, setFilters] = useState<VideoFilters>({ categories: [], authors: [] })
   const [showFilters, setShowFilters] = useState(false)
+
+  // 搜索关键词（本地状态，不立即应用）
+  const [searchKeyword, setSearchKeyword] = useState('')
+
+  // 使用搜索 hook
+  const {
+    videos,
+    loading,
+    searchLoading,
+    page,
+    totalPages,
+    totalVideos,
+    searchParams,
+    setSearchParams,
+    applySearch,
+    clearFilters,
+    goToPage,
+    searchVideos,
+  } = useVideoSearch(gridLayout * 3) // 根据列数计算每页显示数量
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -75,88 +70,63 @@ export default function VideosPage() {
         }
       }
     }
-    
+
     updateCols()
     window.addEventListener('resize', updateCols)
     return () => window.removeEventListener('resize', updateCols)
   }, [gridLayout])
 
-  // 筛选器变化时自动搜索（不包括搜索关键词）
+  // 初始数据加载和布局变化时更新搜索限制
   useEffect(() => {
     if (status === 'authenticated') {
-      fetchVideos()
+      setSearchParams({ limit: gridLayout * 3 })
     }
-  }, [status, page, gridLayout, selectedCategory, selectedAuthor, startDate, endDate])
+  }, [gridLayout, status, setSearchParams])
 
-  // 只在初始加载时获取筛选器选项
+  // 获取筛选器选项
   useEffect(() => {
     if (status === 'authenticated') {
       fetchFilters()
     }
   }, [status])
 
-  const fetchVideos = async (customSearchKeyword?: string) => {
-    try {
-      setLoading(true)
-      const limit = gridLayout * 3 // 根据列数计算每页显示数量（3行）
-      
-      // 使用传入的搜索关键词或当前状态的关键词
-      const keyword = customSearchKeyword !== undefined ? customSearchKeyword : searchKeyword
-      
-      // 构建查询参数
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      })
-      
-      if (keyword) {
-        params.append('search', keyword)
-        params.append('exactMatch', exactMatch.toString())
-      }
-      if (selectedCategory) params.append('category', selectedCategory)
-      if (selectedAuthor) params.append('author', selectedAuthor)
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      
-      const response = await axios.get(`/api/videos?${params.toString()}`)
-      setVideos(response.data.videos)
-      setTotalPages(response.data.pagination.totalPages)
-      setTotalVideos(response.data.pagination.total)
-      
-      // 更新缓存统计
-      updateCacheStats()
-    } catch (error) {
-      console.error('获取视频列表失败:', error)
-    } finally {
-      setLoading(false)
+  // 确保认证成功后触发初始搜索
+  useEffect(() => {
+    if (status === 'authenticated' && videos.length === 0 && !loading) {
+      // 延迟一下确保所有状态都已更新
+      const timer = setTimeout(() => {
+        searchVideos()
+      }, 200)
+      return () => clearTimeout(timer)
     }
-  }
+  }, [status, videos.length, loading, searchVideos])
+
+  // 更新缓存统计
+  useEffect(() => {
+    updateCacheStats()
+  }, [videos])
 
   const fetchFilters = async () => {
     try {
-      const response = await axios.get('/api/videos/filters')
-      setCategories(response.data.categories)
-      setAuthors(response.data.authors)
+      const response = await axios.get<VideoFilters>('/api/videos/filters')
+      setFilters(response.data)
     } catch (error) {
       console.error('获取筛选器选项失败:', error)
     }
   }
 
-  const handleSearch = () => {
-    setPage(1) // 重置到第一页
-    fetchVideos()
+  const handleSearch = async () => {
+    await applySearch(searchKeyword)
   }
 
-  const handleClearFilters = () => {
+  const handleClearFilters = async () => {
     setSearchKeyword('')
-    setExactMatch(false)
-    setSelectedCategory('')
-    setSelectedAuthor('')
-    setStartDate('')
-    setEndDate('')
-    setPage(1)
-    // 清空后使用空字符串搜索
-    fetchVideos('')
+    await clearFilters()
+  }
+
+  // 更新筛选条件
+  const updateFilter = (key: string, value: any) => {
+    setSearchParams({ [key]: value })
   }
 
   const updateCacheStats = () => {
@@ -169,7 +139,7 @@ export default function VideosPage() {
   }
 
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen">
         <Navbar />
@@ -237,7 +207,7 @@ export default function VideosPage() {
                       key={cols}
                       onClick={() => {
                         setGridLayout(cols)
-                        setPage(1)
+                        setSearchParams({ page: 1, limit: cols * 3 })
                         // 保存到 localStorage
                         localStorage.setItem('videoGridLayout', cols.toString())
                       }}
@@ -262,7 +232,7 @@ export default function VideosPage() {
                       key={cols}
                       onClick={() => {
                         setGridLayout(cols)
-                        setPage(1)
+                        setSearchParams({ page: 1, limit: cols * 3 })
                         // 保存到 localStorage
                         localStorage.setItem('videoGridLayout', cols.toString())
                       }}
@@ -330,6 +300,15 @@ export default function VideosPage() {
               <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-50/40 to-blue-100/30 rounded-full blur-3xl -z-10" />
               
               <div className="relative p-5 sm:p-7">
+                {/* 悬浮加载指示器 */}
+                {searchLoading && (
+                  <div className="absolute top-2 right-2 z-10">
+                    <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center shadow-lg">
+                      <div className="w-3 h-3 mr-1 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      加载中...
+                    </div>
+                  </div>
+                )}
 
               {/* 搜索框 */}
               <div className="mb-5">
@@ -351,10 +330,21 @@ export default function VideosPage() {
                   </div>
                   <button
                     onClick={handleSearch}
-                    className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all text-sm font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 whitespace-nowrap"
+                    disabled={searchLoading}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all text-sm font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-nowrap disabled:transform-none flex items-center"
                   >
-                    <span className="hidden sm:inline">🔍 搜索</span>
-                    <span className="sm:hidden">🔍</span>
+                    {searchLoading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span className="hidden sm:inline">搜索中...</span>
+                        <span className="sm:hidden">...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">🔍 搜索</span>
+                        <span className="sm:hidden">🔍</span>
+                      </>
+                    )}
                   </button>
                 </div>
                 
@@ -364,8 +354,8 @@ export default function VideosPage() {
                     <div className="relative">
                       <input
                         type="checkbox"
-                        checked={exactMatch}
-                        onChange={(e) => setExactMatch(e.target.checked)}
+                        checked={searchParams.exactMatch || false}
+                        onChange={(e) => updateFilter('exactMatch', e.target.checked)}
                         className="w-4 h-4 text-blue-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
                       />
                     </div>
@@ -400,11 +390,8 @@ export default function VideosPage() {
                   </label>
                   <div className="relative">
                     <select
-                      value={selectedCategory}
-                      onChange={(e) => {
-                        setSelectedCategory(e.target.value)
-                        setPage(1)
-                      }}
+                      value={searchParams.category || ''}
+                      onChange={(e) => updateFilter('category', e.target.value)}
                       className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 appearance-none cursor-pointer"
                       style={{
                         backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
@@ -415,7 +402,7 @@ export default function VideosPage() {
                       }}
                     >
                       <option value="">🎬 全部分类</option>
-                      {categories.map((cat) => (
+                      {filters.categories.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
@@ -434,11 +421,8 @@ export default function VideosPage() {
                   </label>
                   <div className="relative">
                     <select
-                      value={selectedAuthor}
-                      onChange={(e) => {
-                        setSelectedAuthor(e.target.value)
-                        setPage(1)
-                      }}
+                      value={searchParams.author || ''}
+                      onChange={(e) => updateFilter('author', e.target.value)}
                       className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 appearance-none cursor-pointer"
                       style={{
                         backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
@@ -449,7 +433,7 @@ export default function VideosPage() {
                       }}
                     >
                       <option value="">👤 全部作者</option>
-                      {authors.map((author) => (
+                      {filters.authors.map((author) => (
                         <option key={author} value={author}>
                           {author}
                         </option>
@@ -468,11 +452,8 @@ export default function VideosPage() {
                   </label>
                   <input
                     type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value)
-                      setPage(1)
-                    }}
+                    value={searchParams.startDate || ''}
+                    onChange={(e) => updateFilter('startDate', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer"
                   />
                 </div>
@@ -487,67 +468,86 @@ export default function VideosPage() {
                   </label>
                   <input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value)
-                      setPage(1)
-                    }}
+                    value={searchParams.endDate || ''}
+                    onChange={(e) => updateFilter('endDate', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-sm font-medium shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer"
                   />
                 </div>
               </div>
 
+              {/* 应用筛选按钮和提示 */}
+              <div className="mt-4 text-center">
+                <p className="text-xs text-blue-600 font-medium mb-3">💡 选择筛选条件后，请点击应用筛选按钮</p>
+                <button
+                  onClick={handleSearch}
+                  disabled={searchLoading}
+                  className="px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-all text-sm font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center mx-auto"
+                >
+                  {searchLoading ? (
+                    <>
+                      <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      应用中...
+                    </>
+                  ) : (
+                    <>
+                      ✨ 应用筛选
+                    </>
+                  )}
+                </button>
+              </div>
+
               {/* 活动筛选条件显示和清空按钮 */}
-              {(searchKeyword || exactMatch || selectedCategory || selectedAuthor || startDate || endDate) && (
+              {(searchParams.search || searchParams.exactMatch || searchParams.category || searchParams.author || searchParams.startDate || searchParams.endDate) && (
                 <div className="mt-5 pt-5 border-t-2 border-blue-200">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs font-bold text-blue-900">当前筛选：</span>
-                    
-                    {searchKeyword && (
+
+                    {searchParams.search && (
                       <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
                         <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        {searchKeyword}
-                        {exactMatch && <span className="ml-1">⚡</span>}
+                        {searchParams.search}
+                        {searchParams.exactMatch && <span className="ml-1">⚡</span>}
                       </span>
                     )}
-                    
-                    {selectedCategory && (
+
+                    {searchParams.category && (
                       <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
                         <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                         </svg>
-                        {selectedCategory}
+                        {searchParams.category}
                       </span>
                     )}
-                    
-                    {selectedAuthor && (
+
+                    {searchParams.author && (
                       <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
                         <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                        {selectedAuthor}
+                        {searchParams.author}
                       </span>
                     )}
-                    
-                    {(startDate || endDate) && (
+
+                    {(searchParams.startDate || searchParams.endDate) && (
                       <span className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
                         <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        {startDate || '...'} ~ {endDate || '...'}
+                        {searchParams.startDate || '...'} ~ {searchParams.endDate || '...'}
                       </span>
                     )}
                     
                     <button
                       onClick={handleClearFilters}
-                      className="ml-auto px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all text-xs font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 flex items-center"
+                      disabled={searchLoading}
+                      className="ml-auto px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-xs font-bold shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
-                      清空全部
+                      {searchLoading ? '清空中...' : '清空全部'}
                     </button>
                   </div>
                 </div>
@@ -622,7 +622,7 @@ export default function VideosPage() {
                 <div className="flex justify-center items-center flex-wrap gap-1.5 sm:gap-2">
                   {/* 上一页按钮 */}
                   <button
-                    onClick={() => setPage(page - 1)}
+                    onClick={() => goToPage(page - 1)}
                     disabled={page === 1}
                     className="px-2 sm:px-4 py-2 bg-white border-2 border-blue-400 text-black font-bold rounded-lg hover:bg-blue-50 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:hover:scale-100 text-xs sm:text-base"
                   >
@@ -676,7 +676,7 @@ export default function VideosPage() {
                       return (
                         <button
                           key={num}
-                          onClick={() => setPage(num as number)}
+                          onClick={() => goToPage(num as number)}
                           className={`min-w-[36px] sm:min-w-[44px] px-2 sm:px-4 py-2 font-black rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-110 active:scale-95 text-xs sm:text-base ${
                             isActive 
                               ? '' 
@@ -697,7 +697,7 @@ export default function VideosPage() {
 
                   {/* 下一页按钮 */}
                   <button
-                    onClick={() => setPage(page + 1)}
+                    onClick={() => goToPage(page + 1)}
                     disabled={page === totalPages}
                     className="px-2 sm:px-4 py-2 bg-white border-2 border-blue-400 text-black font-bold rounded-lg hover:bg-blue-50 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:hover:scale-100 text-xs sm:text-base"
                   >

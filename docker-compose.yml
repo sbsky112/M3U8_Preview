@@ -1,20 +1,22 @@
-version: '3.8'
-
 services:
-  # Next.js 应用
+  # Next.js 应用 (SQLite版本)
   app:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # 传递构建时需要的环境变量
-        DATABASE_URL: ${DATABASE_URL}
     container_name: m3u8_app
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # 持久化SQLite数据库文件
+      - ./data:/app/data
+      # 持久化上传文件（可选）
+      - ./public/uploads:/app/public/uploads
     environment:
-      # 数据库连接 - 使用外部 PostgreSQL
-      DATABASE_URL: ${DATABASE_URL}
+      # SQLite 数据库连接
+      DATABASE_URL: file:/app/data/app.db
+      BACKUP_DATABASE_URL: file:/app/data/app_backup.db
       # NextAuth 配置
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:${APP_PORT:-3000}}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-to-a-random-secret-in-production}
@@ -24,7 +26,16 @@ services:
       PORT: 3000
     command: >
       sh -c "
-        npx prisma db push &&
-        npx prisma db seed &&
+        echo '🔧 初始化数据库...' &&
+        npx prisma db push --accept-data-loss &&
+        echo '👤 初始化管理员用户...' &&
+        node scripts/init-admin.js &&
+        echo '🚀 启动应用...' &&
         node server.js
       "
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

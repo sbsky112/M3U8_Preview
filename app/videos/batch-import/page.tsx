@@ -29,7 +29,7 @@ export default function BatchImportPage() {
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
-    } else if (status === 'authenticated' && !hasAdminAccess(session?.user)) {
+    } else if (status === 'authenticated' && session?.user?.role !== 'admin') {
       alert('只有管理员可以批量导入视频')
       router.push('/videos')
     }
@@ -67,7 +67,7 @@ export default function BatchImportPage() {
     )
   }
 
-  if (!hasAdminAccess(session.user)) {
+  if (session?.user?.role !== 'admin') {
     return null
   }
 
