@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Video } from '@/types/video'
+<<<<<<< HEAD
 import { videoCache } from '@/lib/video-cache'
+=======
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
 
 export interface VideoSearchParams {
   search?: string
@@ -52,12 +55,17 @@ export function useVideoSearch(initialLimit: number = 20) {
   }, [])
 
   // 执行搜索的函数
+<<<<<<< HEAD
   const searchVideos = useCallback(async (params?: Partial<VideoSearchParams>, forceRefresh = false) => {
+=======
+  const searchVideos = useCallback(async (params?: Partial<VideoSearchParams>) => {
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
     try {
       setSearchLoading(true)
       const finalParams = params ? { ...searchParams, ...params } : searchParams
 
       console.log('执行搜索，参数:', finalParams)
+<<<<<<< HEAD
       console.log('搜索来源:', params ? '外部调用' : 'hook自动触发')
 
       // 生成缓存键
@@ -77,6 +85,8 @@ export function useVideoSearch(initialLimit: number = 20) {
           return cachedData
         }
       }
+=======
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
 
       // 构建查询参数
       const queryParams = new URLSearchParams()
@@ -92,9 +102,12 @@ export function useVideoSearch(initialLimit: number = 20) {
 
       const response = await axios.get<VideoSearchResult>(`/api/videos?${queryParams.toString()}`)
 
+<<<<<<< HEAD
       // 缓存结果
       videoCache.set(cacheKey, response.data, 2 * 60 * 1000) // 缓存2分钟
 
+=======
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
       setVideos(response.data.videos)
       setTotalPages(response.data.pagination.totalPages)
       setTotalVideos(response.data.pagination.total)
@@ -156,6 +169,7 @@ export function useVideoSearch(initialLimit: number = 20) {
     await searchVideos(newParams)
   }, [searchParams, searchVideos, totalPages])
 
+<<<<<<< HEAD
   // 初始加载时不自动搜索，等待外部参数初始化
   // useEffect(() => {
   //   // 在组件挂载后立即执行搜索，不等待任何条件
@@ -174,6 +188,29 @@ export function useVideoSearch(initialLimit: number = 20) {
 
   //   return () => clearTimeout(timer)
   // }, [searchParams]) // 监控所有搜索参数
+=======
+  // 初始加载时自动搜索
+  useEffect(() => {
+    // 只在组件首次挂载时执行一次搜索
+    const timer = setTimeout(() => {
+      searchVideos()
+    }, 100) // 短延迟确保组件完全加载
+
+    return () => clearTimeout(timer)
+  }, []) // 空依赖数组，只在首次挂载时执行
+
+  // 自动搜索（仅当搜索关键词变化时）
+  useEffect(() => {
+    // 避免初始加载时的重复请求（当不是初始加载时）
+    if (loading && videos.length === 0) return
+
+    const timer = setTimeout(() => {
+      searchVideos()
+    }, 300) // 防抖 300ms
+
+    return () => clearTimeout(timer)
+  }, [searchParams.search]) // 只监控搜索关键词
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
 
   return {
     // 数据状态

@@ -1,4 +1,4 @@
-# Docker 部署指南
+# Docker 部署指南 (SQLite版本)
 
 本文档提供了使用 Docker 和 GitHub Actions 部署 M3U8 视频预览平台的完整指南，支持自动化构建和部署。
 

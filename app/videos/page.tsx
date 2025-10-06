@@ -11,10 +11,16 @@ import { useVideoSearch } from '@/hooks/useVideoSearch'
 import { VideoFilters } from '@/types/video'
 import axios from 'axios'
 
+<<<<<<< HEAD
 function VideosPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const urlSearchParams = useSearchParams()
+=======
+export default function VideosPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
 
   // 布局状态
   const [gridLayout, setGridLayout] = useState<number>(() => {
@@ -35,6 +41,7 @@ function VideosPageContent() {
   // 搜索关键词（本地状态，不立即应用）
   const [searchKeyword, setSearchKeyword] = useState('')
 
+<<<<<<< HEAD
   // 保存视频列表状态到localStorage
   const saveStateToLocalStorage = (state: any) => {
     if (typeof window !== 'undefined') {
@@ -46,6 +53,8 @@ function VideosPageContent() {
     }
   }
 
+=======
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
   // 使用搜索 hook
   const {
     videos,
@@ -62,6 +71,7 @@ function VideosPageContent() {
     searchVideos,
   } = useVideoSearch(gridLayout * 3) // 根据列数计算每页显示数量
 
+<<<<<<< HEAD
   // 从URL参数初始化搜索状态 - 优先级最高
   const [initialized, setInitialized] = useState(false)
 
@@ -213,6 +223,8 @@ function VideosPageContent() {
     router.push(newUrl)
   }
 
+=======
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
@@ -254,6 +266,7 @@ function VideosPageContent() {
     }
   }, [status])
 
+<<<<<<< HEAD
   // 从URL参数恢复搜索状态
   useEffect(() => {
     if (status === 'authenticated') {
@@ -304,6 +317,18 @@ useEffect(() => {
       })
     }
   }, [searchParams, status])
+=======
+  // 确保认证成功后触发初始搜索
+  useEffect(() => {
+    if (status === 'authenticated' && videos.length === 0 && !loading) {
+      // 延迟一下确保所有状态都已更新
+      const timer = setTimeout(() => {
+        searchVideos()
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [status, videos.length, loading, searchVideos])
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
 
   // 更新缓存统计
   useEffect(() => {
@@ -320,11 +345,16 @@ useEffect(() => {
   }
 
   const handleSearch = async () => {
+<<<<<<< HEAD
     navigateWithSearch(searchKeyword)
+=======
+    await applySearch(searchKeyword)
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
   }
 
   const handleClearFilters = async () => {
     setSearchKeyword('')
+<<<<<<< HEAD
     navigateWithClearFilters()
   }
 
@@ -360,6 +390,14 @@ useEffect(() => {
 
     const newUrl = params.toString() ? `/videos?${params.toString()}` : '/videos'
     router.push(newUrl)
+=======
+    await clearFilters()
+  }
+
+  // 更新筛选条件
+  const updateFilter = (key: string, value: any) => {
+    setSearchParams({ [key]: value })
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
   }
 
   const updateCacheStats = () => {
@@ -856,7 +894,11 @@ useEffect(() => {
                 <div className="flex justify-center items-center flex-wrap gap-1.5 sm:gap-2">
                   {/* 上一页按钮 */}
                   <button
+<<<<<<< HEAD
                     onClick={() => navigateToPage(page - 1)}
+=======
+                    onClick={() => goToPage(page - 1)}
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
                     disabled={page === 1}
                     className="px-2 sm:px-4 py-2 bg-white border-2 border-blue-400 text-black font-bold rounded-lg hover:bg-blue-50 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:hover:scale-100 text-xs sm:text-base"
                   >
@@ -910,7 +952,11 @@ useEffect(() => {
                       return (
                         <button
                           key={num}
+<<<<<<< HEAD
                           onClick={() => navigateToPage(num as number)}
+=======
+                          onClick={() => goToPage(num as number)}
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
                           className={`min-w-[36px] sm:min-w-[44px] px-2 sm:px-4 py-2 font-black rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-110 active:scale-95 text-xs sm:text-base ${
                             isActive 
                               ? '' 
@@ -931,7 +977,11 @@ useEffect(() => {
 
                   {/* 下一页按钮 */}
                   <button
+<<<<<<< HEAD
                     onClick={() => navigateToPage(page + 1)}
+=======
+                    onClick={() => goToPage(page + 1)}
+>>>>>>> e870b7db83a6e17f15b9cd29ae3f6b5cd8f40694
                     disabled={page === totalPages}
                     className="px-2 sm:px-4 py-2 bg-white border-2 border-blue-400 text-black font-bold rounded-lg hover:bg-blue-50 hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:hover:scale-100 text-xs sm:text-base"
                   >
