@@ -30,6 +30,73 @@ export default function VideoDetailPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
+  // 构建返回URL
+  const buildReturnUrl = () => {
+    // 从document.referrer获取来源URL的查询参数
+    let returnPage = 1
+    let returnSearch = ''
+    let returnExactMatch = false
+    let returnCategory = ''
+    let returnAuthor = ''
+    let returnStartDate = ''
+    let returnEndDate = ''
+
+    if (typeof window !== 'undefined') {
+      try {
+        // 尝试从URL查询参数中获取
+        const urlParams = new URLSearchParams(window.location.search)
+        returnPage = parseInt(urlParams.get('page') || '1')
+        returnSearch = urlParams.get('search') || ''
+        returnExactMatch = urlParams.get('exactMatch') === 'true'
+        returnCategory = urlParams.get('category') || ''
+        returnAuthor = urlParams.get('author') || ''
+        returnStartDate = urlParams.get('startDate') || ''
+        returnEndDate = urlParams.get('endDate') || ''
+
+        console.log('从URL查询参数获取返回信息:', {
+          page: returnPage,
+          search: returnSearch,
+          exactMatch: returnExactMatch,
+          category: returnCategory,
+          author: returnAuthor,
+          startDate: returnStartDate,
+          endDate: returnEndDate
+        })
+      } catch (error) {
+        console.warn('Failed to parse URL params:', error)
+      }
+    }
+
+    // 优先使用URL参数，其次使用localStorage
+    const params = new URLSearchParams()
+
+    if (returnPage > 1) {
+      params.append('page', returnPage.toString())
+    }
+    if (returnSearch) {
+      params.append('search', returnSearch)
+    }
+    if (returnExactMatch) {
+      params.append('exactMatch', 'true')
+    }
+    if (returnCategory) {
+      params.append('category', returnCategory)
+    }
+    if (returnAuthor) {
+      params.append('author', returnAuthor)
+    }
+    if (returnStartDate) {
+      params.append('startDate', returnStartDate)
+    }
+    if (returnEndDate) {
+      params.append('endDate', returnEndDate)
+    }
+
+    const queryString = params.toString()
+    const returnUrl = queryString ? `/videos?${queryString}` : '/videos'
+    console.log('构建的返回URL:', returnUrl)
+    return returnUrl
+  }
   const [video, setVideo] = useState<Video | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -80,7 +147,7 @@ export default function VideoDetailPage() {
     try {
       await axios.delete(`/api/videos/${params.id}`)
       alert('删除成功')
-      router.push('/videos')
+      router.push(buildReturnUrl())
     } catch (error: any) {
       alert(error.response?.data?.error || '删除失败')
     }
@@ -113,7 +180,7 @@ export default function VideoDetailPage() {
           {/* 返回按钮 */}
           <div className="mb-4 sm:mb-5 md:mb-6">
             <button
-              onClick={() => router.push('/videos')}
+              onClick={() => router.push(buildReturnUrl())}
               className="px-4 sm:px-5 md:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl transition-all font-black shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 text-sm sm:text-base"
               style={{
                 background: 'linear-gradient(to right, #3b82f6, #2563eb)',

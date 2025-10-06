@@ -22,6 +22,15 @@ interface VideoCardWithThumbnailProps {
   }
   onDelete?: (id: string) => void
   autoExtract?: boolean // 是否自动提取封面
+  searchParams?: {
+    page?: number
+    search?: string
+    exactMatch?: boolean
+    category?: string
+    author?: string
+    startDate?: string
+    endDate?: string
+  }
 }
 
 export default function VideoCardWithThumbnail({
@@ -36,12 +45,43 @@ export default function VideoCardWithThumbnail({
   user,
   onDelete,
   autoExtract = true,
+  searchParams,
 }: VideoCardWithThumbnailProps) {
   const [thumbnail, setThumbnail] = useState<string>(initialThumbnail || '')
   const [isExtracting, setIsExtracting] = useState(false)
   const [extractError, setExtractError] = useState(false)
 
   const defaultThumbnail = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="225"%3E%3Crect width="400" height="225" fill="%23e2e8f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="%2364748b"%3E视频封面%3C/text%3E%3C/svg%3E'
+
+  // 构建带有查询参数的视频详情页URL
+  const buildVideoDetailUrl = () => {
+    const params = new URLSearchParams()
+
+    if (searchParams?.page && searchParams.page > 1) {
+      params.append('page', searchParams.page.toString())
+    }
+    if (searchParams?.search) {
+      params.append('search', searchParams.search)
+    }
+    if (searchParams?.exactMatch) {
+      params.append('exactMatch', 'true')
+    }
+    if (searchParams?.category) {
+      params.append('category', searchParams.category)
+    }
+    if (searchParams?.author) {
+      params.append('author', searchParams.author)
+    }
+    if (searchParams?.startDate) {
+      params.append('startDate', searchParams.startDate)
+    }
+    if (searchParams?.endDate) {
+      params.append('endDate', searchParams.endDate)
+    }
+
+    const queryString = params.toString()
+    return queryString ? `/videos/${id}?${queryString}` : `/videos/${id}`
+  }
 
   useEffect(() => {
     // 如果已有封面，不需要提取
@@ -94,7 +134,7 @@ export default function VideoCardWithThumbnail({
 
   return (
     <div className="video-card card-hover bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 w-full h-full flex flex-col">
-      <Link href={`/videos/${id}`}>
+      <Link href={buildVideoDetailUrl()}>
         <div className="relative aspect-video bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden group">
           <img
             src={thumbnail || defaultThumbnail}
@@ -143,7 +183,7 @@ export default function VideoCardWithThumbnail({
       </Link>
       
       <div className="p-3 sm:p-4 md:p-5 flex-1 flex flex-col">
-        <Link href={`/videos/${id}`}>
+        <Link href={buildVideoDetailUrl()}>
           <h3 className="text-base sm:text-lg md:text-xl font-black text-gray-900 hover:text-blue-600 transition-colors line-clamp-2 mb-1 sm:mb-2">
             {title}
           </h3>

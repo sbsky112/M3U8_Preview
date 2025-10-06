@@ -19,7 +19,7 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user || !hasAdminAccess(session.user)) {
+    if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json({ error: '无权限' }, { status: 403 })
     }
 
@@ -88,7 +88,7 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user || !hasAdminAccess(session.user)) {
+    if (!session?.user || session.user.role !== 'admin') {
       return NextResponse.json({ error: '无权限' }, { status: 403 })
     }
 

@@ -1,12 +1,18 @@
 # Docker 部署指南
 
-本文档提供了使用 Docker 部署 M3U8 视频预览平台的完整指南，使用外部 PostgreSQL 数据库。
+本文档提供了使用 Docker 和 GitHub Actions 部署 M3U8 视频预览平台的完整指南，支持自动化构建和部署。
 
 ## 前提条件
 
 - 已安装 Docker
 - 已安装 Docker Compose
-- 已有可用的 PostgreSQL 数据库（外部）
+
+## 版本特性
+
+✅ **轻量化部署**：使用 SQLite 数据库，无需外部数据库服务
+✅ **内置备份功能**：支持网站数据备份和恢复
+✅ **数据持久化**：数据库和上传文件自动持久化
+✅ **健康检查**：自动监控应用状态
 
 ## 快速开始
 
@@ -27,13 +33,9 @@ openssl rand -base64 32
 创建 `.env` 文件（或修改 `.env.example`）：
 
 ```bash
-# 外部 PostgreSQL 数据库连接
-
-# 使用主机网络模式，直接连接主机上的数据库
-DATABASE_URL="postgresql://video:jZixWkjHLW2cLwnN@localhost:5432/video?schema=public"
-
-# 如果 PostgreSQL 运行在其他服务器上，使用实际 IP 或域名：
-# DATABASE_URL="postgresql://video:jZixWkjHLW2cLwnN@server-ip:5432/video?schema=public"
+# SQLite 数据库连接（使用默认值即可）
+DATABASE_URL="file:./data/app.db"
+BACKUP_DATABASE_URL="file:./data/app_backup.db"
 
 # 应用端口配置（可选，默认为 3000）
 APP_PORT=3000
@@ -43,34 +45,21 @@ NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET=your-generated-secret-here
 ```
 
-**重要：**
-- 当前配置使用主机网络模式，容器直接使用主机的网络栈
-- 可以使用 `localhost` 连接主机上的数据库，避免权限问题
-- `APP_PORT` 是可选的，用于指定应用在主机上监听的端口（默认为 3000）
-- `NEXTAUTH_URL` 会自动根据 `APP_PORT` 设置，通常不需要手动修改
+**重要说明：**
+- 使用 SQLite 数据库，无需外部数据库服务
+- 数据库文件会自动创建并持久化到 `./data` 目录
+- 备份文件会存储在 `./data/backups` 目录
+- `APP_PORT` 用于指定应用在主机上监听的端口（默认为 3000）
+- `NEXTAUTH_URL` 会自动根据 `APP_PORT` 设置
 
-### 3. 初始化数据库权限（可选）
+### 3. 创建数据目录
 
-如果遇到数据库权限问题，可以运行以下脚本初始化权限：
+创建数据目录用于存储SQLite数据库和备份文件：
 
 ```bash
-# 确保已设置 DATABASE_URL 环境变量
-# 运行数据库权限初始化脚本
-chmod +x scripts/init-db.sh
-./scripts/init-db.sh
-```
-
-或者手动在 PostgreSQL 中设置权限：
-
-```sql
--- 以 postgres 用户登录
-psql -U postgres -d video
-
--- 授予权限
-GRANT CREATE ON SCHEMA public TO video;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO video;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO video;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO video;
+# 创建数据目录
+mkdir -p data/backups
+mkdir -p public/uploads
 ```
 
 ### 4. 启动服务
@@ -96,26 +85,67 @@ docker compose down
 
 ## 服务说明
 
-### Next.js 应用
+### Next.js 应用 (SQLite版本)
 
 - 容器名：`m3u8_app`
-- 端口：`3000`
-- 网络：使用主机网络模式 (host)
+- 端口：`3000`（映射到主机）
+- 数据库：内置 SQLite 数据库
+- 数据持久化：自动挂载 `./data` 目录
+- 文件上传：自动挂载 `./public/uploads` 目录
 - 自动运行数据库迁移和初始化
 - 自动创建默认管理员账号
-- 连接到外部 PostgreSQL 数据库
+- 内置健康检查机制
 
-**注意**：使用主机网络模式可以让容器直接访问主机上的数据库，避免权限问题。
+**数据持久化说明：**
+- 数据库文件：`./data/app.db`
+- 备份文件：`./data/backups/`
+- 上传文件：`./public/uploads/`
+
+## 备份和恢复功能
+
+### 创建备份
+
+管理员可以通过API创建备份：
+
+```bash
+# 创建数据库备份
+curl -X POST http://localhost:3000/api/backup \
+  -H "Content-Type: application/json" \
+  -d '{"includeFiles": false}'
+
+# 创建完整备份（包含文件）
+curl -X POST http://localhost:3000/api/backup \
+  -H "Content-Type: application/json" \
+  -d '{"fullBackup": true}'
+```
+
+### 查看备份列表
+
+```bash
+curl http://localhost:3000/api/backup
+```
+
+### 恢复备份
+
+```bash
+# 从备份恢复
+curl -X POST http://localhost:3000/api/restore \
+  -H "Content-Type: application/json" \
+  -d '{"backupPath": "./data/backups/backup_2024-01-01.db", "includeFiles": false}'
+```
 
 ## 自定义配置
 
 ### 数据库连接配置
 
-在 `.env` 文件中设置您的数据库连接：
+SQLite 数据库配置（通常使用默认值即可）：
 
 ```bash
-# 格式：postgresql://用户名:密码@主机:端口/数据库名?schema=public
-DATABASE_URL="postgresql://myuser:mypassword@db.example.com:5432/myapp?schema=public"
+# 主数据库
+DATABASE_URL="file:./data/app.db"
+
+# 备份数据库
+BACKUP_DATABASE_URL="file:./data/app_backup.db"
 ```
 
 ### 修改应用配置
@@ -150,100 +180,74 @@ ports:
 
 ## 故障排除
 
-### 数据库连接问题
+### SQLite 数据库问题
 
-如果应用无法连接到外部数据库，检查：
+如果应用无法启动或数据库有问题：
 
-1. 应用容器是否正常运行：
+1. **检查应用容器状态**：
    ```bash
    docker compose ps
    ```
 
-2. 查看应用日志：
+2. **查看应用日志**：
    ```bash
    docker compose logs app
    ```
 
-3. 检查 `.env` 文件中的 `DATABASE_URL` 是否正确
-
-4. 确保外部数据库可以从 Docker 容器访问：
+3. **检查数据库文件权限**：
    ```bash
-   # 测试数据库连接
-   docker compose exec app npx prisma db pull
+   ls -la ./data/
    ```
 
-### 数据库权限问题
+4. **重新初始化数据库**：
+   ```bash
+   # 停止容器
+   docker compose down
 
-如果遇到 `permission denied for schema public` 或 `ERROR: permission denied for schema public` 错误：
+   # 删除数据库文件（谨慎操作）
+   rm ./data/app.db
 
-1. **检查数据库用户权限**：
-  - 确保数据库用户具有创建表的权限
-  - 使用具有足够权限的用户（如 postgres 超级用户）进行初始化
+   # 重新启动容器
+   docker compose up -d --build
+   ```
 
-2. **手动授予权限**：
-  ```sql
-  -- 以 postgres 用户登录 PostgreSQL
-  psql -U postgres -d video
-  
-  -- 授予权限
-  GRANT CREATE ON SCHEMA public TO video;
-  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO video;
-  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO video;
-  
-  -- 设置默认权限
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO video;
-  ```
+### 权限问题
 
-3. **使用超级用户初始化**：
-  - 临时使用 postgres 超级用户进行初始化
-  - 初始化完成后可以切换回普通用户
+如果遇到文件权限问题：
 
-4. **检查数据库所有者**：
-  ```sql
-  -- 检查数据库所有者
-  SELECT datname, datdba, (SELECT rolname FROM pg_roles WHERE oid = datdba) AS owner
-  FROM pg_database WHERE datname = 'video';
-  
-  -- 如果需要，更改数据库所有者
-  ALTER DATABASE video OWNER TO video;
-  ```
+1. **修复数据目录权限**：
+   ```bash
+   sudo chown -R $USER:$USER ./data
+   chmod -R 755 ./data
+   ```
+
+2. **修复上传目录权限**：
+   ```bash
+   sudo chown -R $USER:$USER ./public/uploads
+   chmod -R 755 ./public/uploads
+   ```
 
 ### 端口冲突
 
 如果端口被占用，修改 `docker-compose.yml` 中的端口映射。
 
-### 网络连接问题
+### 备份相关错误
 
-如果 Docker 容器无法访问外部数据库：
+如果备份功能遇到问题：
 
-1. 检查防火墙设置
-2. 确保数据库允许来自 Docker 网络的连接
-3. 验证数据库主机名和端口是否正确
-
-#### 连接主机上的 PostgreSQL
-
-使用主机网络模式连接主机上的 PostgreSQL：
-
-1. **优势**：
-   - 容器直接使用主机的网络栈
-   - 可以使用 `localhost` 连接主机上的数据库
-   - 避免了网络权限问题，特别适合宝塔面板等环境
-
-2. **配置说明**：
-   - 使用 `network_mode: host` 配置
-   - 数据库连接使用 `localhost` 而不是特殊主机名
-   - 适用于宝塔面板等环境创建的数据库用户
-
-3. **测试连接**：
+1. **检查备份目录权限**：
    ```bash
-   # 在容器内测试连接
-   docker compose exec app npx prisma db pull
+   ls -la ./data/backups/
    ```
 
-4. **注意事项**：
-   - 容器将直接绑定到主机的端口
-   - 确保主机上的端口没有被其他服务占用
-   - 适用于单主机部署场景
+2. **手动创建备份**：
+   ```bash
+   # 进入容器
+   docker compose exec app sh
+
+   # 创建备份
+   cp /app/data/app.db /app/data/backups/manual_backup.db
+   ```
 
 ## 生产环境部署
 
@@ -252,17 +256,38 @@ ports:
 1. 使用强密码作为 `NEXTAUTH_SECRET`
 2. 设置正确的 `NEXTAUTH_URL` 为实际域名
 3. 考虑使用 HTTPS
-4. 确保外部数据库连接使用 SSL
+4. 定期备份 SQLite 数据库文件
 
 ### 性能优化
 
 1. 配置适当的资源限制
-2. 优化外部 PostgreSQL 配置
-3. 考虑使用连接池
+2. 定期清理旧备份文件
+3. 监控数据库文件大小
 
 ### 备份策略
 
-定期备份外部 PostgreSQL 数据（请参考您的数据库提供商的文档）。
+SQLite 数据库备份建议：
+
+1. **自动备份**：通过应用内的备份功能定期创建备份
+2. **手动备份**：定期复制 `./data/app.db` 文件到安全位置
+3. **远程备份**：将备份文件上传到云存储或其他安全位置
+
+```bash
+# 创建定时备份脚本
+cat > backup.sh << 'EOF'
+#!/bin/bash
+BACKUP_DIR="./data/backups"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+cp "./data/app.db" "$BACKUP_DIR/auto_backup_$TIMESTAMP.db"
+# 保留最近10个备份
+cd "$BACKUP_DIR" && ls -t | tail -n +11 | xargs -r rm
+EOF
+
+chmod +x backup.sh
+
+# 添加到 crontab（每天凌晨2点备份）
+# 0 2 * * * /path/to/your/project/backup.sh
+```
 
 ## 更新应用
 
@@ -274,6 +299,114 @@ git pull
 
 # 重新构建并启动
 docker compose up -d --build
+```
+
+## GitHub Actions 自动化部署
+
+项目已配置 GitHub Actions 工作流，实现自动化 Docker 镜像构建和部署。
+
+### 工作流特性
+
+✅ **自动构建**：代码推送到 main 分支时自动构建 Docker 镜像
+✅ **镜像推送**：自动推送到 GitHub Container Registry (ghcr.io)
+✅ **多版本标签**：支持分支标签、版本标签和 latest 标签
+✅ **缓存优化**：使用 GitHub Actions 缓存加速构建
+✅ **自动部署**：支持自动部署到生产服务器（可选）
+
+### 工作流配置
+
+工作流文件：`.github/workflows/docker.yml`
+
+**触发条件：**
+- 推送到 main/master 分支
+- 创建版本标签 (v*)
+- Pull Request 到 main/master 分支
+
+**构建步骤：**
+1. 检出代码
+2. 登录 GitHub Container Registry
+3. 提取元数据和标签
+4. 构建并推送 Docker 镜像
+5. （可选）部署到生产服务器
+
+### 生成的镜像标签
+
+- `ghcr.io/username/repository:main` - 主分支最新代码
+- `ghcr.io/username/repository:latest` - 默认分支最新代码
+- `ghcr.io/username/repository:v1.0.0` - 版本标签
+- `ghcr.io/username/repository:pr-123` - Pull Request 镜像
+
+### 配置自动部署（可选）
+
+要启用自动部署到生产服务器，需要在 GitHub 仓库设置中配置以下 Secrets：
+
+1. `SERVER_HOST` - 服务器主机地址
+2. `SERVER_USERNAME` - SSH 用户名
+3. `SERVER_SSH_KEY` - SSH 私钥内容
+
+**配置步骤：**
+
+1. 生成 SSH 密钥对：
+   ```bash
+   ssh-keygen -t rsa -b 4096 -C "github-actions"
+   ```
+
+2. 在服务器上配置公钥：
+   ```bash
+   # 将公钥添加到 authorized_keys
+   cat ~/.ssh/id_rsa_github.pub >> ~/.ssh/authorized_keys
+   ```
+
+3. 在 GitHub 仓库中配置 Secrets：
+   - 进入 Settings → Secrets and variables → Actions
+   - 点击 "New repository secret"
+   - 添加上述三个 Secrets
+
+### 使用自动化镜像
+
+使用 GitHub Actions 构建的镜像：
+
+**1. 更新 docker-compose.yml：**
+```yaml
+services:
+  app:
+    image: ghcr.io/yourusername/yourrepository:main
+    # 其他配置...
+```
+
+**2. 拉取并运行：**
+```bash
+docker-compose pull
+docker-compose up -d
+```
+
+**3. 生产环境使用：**
+```bash
+# 使用生产配置
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### 监控和故障排除
+
+**查看工作流状态：**
+- 进入 GitHub 仓库的 Actions 页面
+- 查看工作流运行历史和日志
+
+**常见问题：**
+
+1. **构建失败**：检查 Dockerfile 和依赖项
+2. **推送失败**：确认有足够的仓库权限
+3. **部署失败**：检查 SSH 配置和服务器连接
+
+**手动触发构建：**
+```bash
+# 推送代码触发构建
+git push origin main
+
+# 创建版本标签
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 常见问题

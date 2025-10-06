@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/${{github.repository}}:latest
+    container_name: m3u8_preview_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/app.db
+      - BACKUP_DATABASE_URL=file:/app/data/app_backup.db
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    volumes:
+      - ./data:/app/data
+      - ./data/backups:/app/data/backups
+      - ./public/uploads:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 可选：Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: m3u8_preview_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    profiles:
+      - production
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
+  backups:
+    driver: local
+  uploads:
+    driver: local

@@ -45,13 +45,13 @@ export default function AdminVideosPage() {
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
-    } else if (status === 'authenticated' && !hasAdminAccess(session?.user)) {
+    } else if (status === 'authenticated' && session?.user?.role !== 'admin') {
       router.push('/videos')
     }
   }, [status, session, router])
 
   useEffect(() => {
-    if (status === 'authenticated' && hasAdminAccess(session?.user)) {
+    if (status === 'authenticated' && session?.user?.role === 'admin') {
       fetchVideos()
       fetchFilters()
     }

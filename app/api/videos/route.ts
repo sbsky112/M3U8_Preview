@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { buildVideoWhereClause, validateSearchParams, VideoSearchParams } from '@/lib/video-search'
 
 const videoSchema = z.object({
   title: z.string().min(1, '标题不能为空'),
@@ -18,73 +19,48 @@ const videoSchema = z.object({
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: '未授权' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const skip = (page - 1) * limit
-    
-    // 搜索和筛选参数
-    const search = searchParams.get('search') || ''
-    const exactMatch = searchParams.get('exactMatch') === 'true'
-    const category = searchParams.get('category') || ''
-    const author = searchParams.get('author') || ''
-    const startDate = searchParams.get('startDate') || ''
-    const endDate = searchParams.get('endDate') || ''
+
+    // 提取搜索参数
+    const rawParams: Partial<VideoSearchParams> = {
+      search: searchParams.get('search') || undefined,
+      exactMatch: searchParams.get('exactMatch') === 'true',
+      category: searchParams.get('category') || undefined,
+      author: searchParams.get('author') || undefined,
+      startDate: searchParams.get('startDate') || undefined,
+      endDate: searchParams.get('endDate') || undefined,
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '20'),
+    }
+
+    // 验证和清理参数
+    const validation = validateSearchParams(rawParams)
+    if (!validation.isValid && validation.errors.length > 0) {
+      console.warn('搜索参数验证警告:', validation.errors)
+    }
+
+    const params = validation.sanitized
+    const skip = (params.page - 1) * params.limit
 
     // 构建查询条件
-    const where: any = {}
-    
-    // 标题搜索
-    if (search) {
-      if (exactMatch) {
-        // 精确匹配
-        where.title = {
-          equals: search,
-          mode: 'insensitive',
-        }
-      } else {
-        // 模糊匹配
-        where.title = {
-          contains: search,
-          mode: 'insensitive',
-        }
-      }
-    }
-    
-    // 分类筛选
-    if (category) {
-      where.category = category
-    }
-    
-    // 作者筛选
-    if (author) {
-      where.author = author
-    }
-    
-    // 时间区间筛选
-    if (startDate || endDate) {
-      where.createdAt = {}
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate)
-      }
-      if (endDate) {
-        // 包含当天的结束时间
-        const endDateTime = new Date(endDate)
-        endDateTime.setHours(23, 59, 59, 999)
-        where.createdAt.lte = endDateTime
-      }
-    }
+    const where = buildVideoWhereClause(params)
+
+    console.log('=== API调试信息 ===')
+    console.log('数据库URL:', process.env.DATABASE_URL)
+    console.log('搜索参数:', JSON.stringify(params, null, 2))
+    console.log('查询条件:', JSON.stringify(where, null, 2))
+    console.log('===================')
 
     const [videos, total] = await Promise.all([
       prisma.video.findMany({
         where,
         skip,
-        take: limit,
+        take: params.limit,
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
@@ -99,19 +75,29 @@ export async function GET(request: Request) {
       prisma.video.count({ where }),
     ])
 
+    console.log('=== 查询结果 ===')
+    console.log('找到视频数量:', videos.length)
+    console.log('数据库总数:', total)
+    console.log('视频列表:')
+    videos.forEach((video, index) => {
+      console.log(`  ${index + 1}. ${video.title} (ID: ${video.id})`)
+    })
+    console.log('===================')
+
     return NextResponse.json({
       videos,
       pagination: {
-        page,
-        limit,
+        page: params.page,
+        limit: params.limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / params.limit),
       },
+      searchParams: params, // 返回实际使用的搜索参数用于调试
     })
   } catch (error) {
     console.error('获取视频列表失败:', error)
     return NextResponse.json(
-      { error: '获取视频列表失败' },
+      { error: '获取视频列表失败', details: error instanceof Error ? error.message : '未知错误' },
       { status: 500 }
     )
   }

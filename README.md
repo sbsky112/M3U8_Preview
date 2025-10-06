@@ -1,10 +1,11 @@
 # M3U8 视频预览平台
 
-基于 Next.js + Prisma + PostgreSQL 构建的 M3U8 视频浏览和管理平台。
+基于 Next.js + Prisma + SQLite 构建的 M3U8 视频浏览和管理平台。
 
 [![Docker](https://img.shields.io/badge/Docker-支持-2496ED?logo=docker&logoColor=white)](./DOCKER_DEPLOYMENT.md)
+[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-自动构建-2088FF?logo=github-actions&logoColor=white)](./GITHUB_ACTIONS_DEPLOYMENT.md)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
 ## 功能特性
 
@@ -19,7 +20,8 @@
 
 ### 高级功能
 - ✅ **作者和分类系统**（自动识别作者、分类管理）🏷️
-- ✅ **搜索和筛选**（标题搜索、分类、作者、时间筛选）🔍
+- ✅ **智能搜索和筛选**（标题搜索、分类、作者、时间筛选）🔍
+- ✅ **优化的搜索体验**（自动/手动搜索模式，防抖优化）⚡
 - ✅ **客户端视频封面提取**（无需服务端 ffmpeg）
 - ✅ **智能缓存系统**（双层缓存，二次访问 < 50ms）⚡
 - ✅ **首页自动提取封面**（自动提取并缓存）
@@ -33,7 +35,7 @@
 
 - **前端**: Next.js 14 (App Router), React 18, TailwindCSS
 - **后端**: Next.js API Routes
-- **数据库**: PostgreSQL + Prisma ORM
+- **数据库**: SQLite + Prisma ORM
 - **认证**: NextAuth.js
 - **视频播放器**: DPlayer (支持 HLS)
 - **UI 框架**: TailwindCSS
@@ -42,6 +44,7 @@
 
 > 💡 **快速部署：**
 > - Docker 部署：查看 [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) 获取完整 Docker 部署指南
+> - GitHub Actions 自动化部署：查看 [GITHUB_ACTIONS_DEPLOYMENT.md](./GITHUB_ACTIONS_DEPLOYMENT.md) 获取 CI/CD 配置指南
 > - 传统部署：查看下方步骤
 
 ### 1. 安装依赖
@@ -55,8 +58,9 @@ npm install
 复制 `.env.example` 并重命名为 `.env`：
 
 \`\`\`bash
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/m3u8_preview?schema=public"
+# Database (SQLite)
+DATABASE_URL="file:./data/app.db"
+BACKUP_DATABASE_URL="file:./data/app_backup.db"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
@@ -71,7 +75,7 @@ openssl rand -base64 32
 
 ### 3. 设置数据库
 
-确保 PostgreSQL 已安装并运行，然后执行：
+使用 SQLite 数据库（无需额外安装）：
 
 \`\`\`bash
 # 初始化 Prisma
@@ -132,11 +136,20 @@ m3u8_preview/
 ├── app/
 │   ├── api/                    # API 路由
 │   │   ├── auth/              # 认证相关 API
-│   │   └── videos/            # 视频管理 API
+│   │   ├── videos/            # 视频管理 API
+│   │   ├── admin/             # 管理员 API
+│   │   └── backup/            # 备份恢复 API
+│   ├── admin/                 # 管理后台页面
+│   │   ├── page.tsx           # 管理首页
+│   │   ├── users/             # 用户管理
+│   │   ├── videos/            # 视频管理
+│   │   ├── categories/        # 分类管理
+│   │   └── settings/          # 系统设置
 │   ├── auth/                  # 认证页面
 │   │   ├── signin/           # 登录页
 │   │   └── signup/           # 注册页
 │   ├── videos/                # 视频相关页面
+│   │   ├── page.tsx           # 视频列表页（支持搜索筛选）
 │   │   ├── [id]/             # 视频详情页
 │   │   ├── upload/           # 上传视频页
 │   │   └── batch-import/     # 批量导入页
@@ -147,16 +160,31 @@ m3u8_preview/
 ├── components/                # React 组件
 │   ├── VideoPlayer.tsx       # 视频播放器
 │   ├── VideoCard.tsx         # 视频卡片
-│   └── Navbar.tsx            # 导航栏
+│   ├── VideoCardWithThumbnail.tsx # 带封面的视频卡片
+│   ├── Navbar.tsx            # 导航栏
+│   └── BackupManager.tsx     # 备份管理组件
 ├── lib/                       # 工具库
 │   ├── auth.ts               # NextAuth 配置
-│   └── prisma.ts             # Prisma 客户端
+│   ├── prisma.ts             # Prisma 客户端
+│   ├── video-search.ts       # 搜索逻辑
+│   ├── thumbnail-cache.ts    # 缩略图缓存
+│   └── backup-restore.ts     # 备份恢复功能
+├── hooks/                     # 自定义 React Hooks
+│   └── useVideoSearch.ts     # 视频搜索 Hook
+├── scripts/                   # 脚本文件
+│   ├── init-admin.js         # 初始化管理员
+│   └── health-check.sh       # 健康检查脚本
+├── data/                      # 数据目录
+├── public/
+│   └── uploads/              # 上传文件目录
 ├── prisma/
 │   └── schema.prisma         # 数据库模型
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.ts
-└── next.config.js
+├── next.config.js
+├── docker-compose.yml        # Docker 配置
+└── Dockerfile               # Docker 镜像配置
 \`\`\`
 
 ## 使用说明
@@ -227,6 +255,46 @@ m3u8_preview/
 2. 进入视频详情页自动加载播放器
 3. 使用 DPlayer 的控制栏进行播放控制
 
+## 搜索和筛选功能 🔍
+
+### 智能搜索体验
+
+**优化的搜索行为：**
+
+🔍 **自动搜索模式：**
+- 搜索关键词输入（300ms 防抖，避免频繁请求）
+- 初始页面加载自动显示所有视频
+
+🚫 **手动搜索模式：**
+- 精确搜索选项切换（需点击搜索按钮）
+- 分类筛选框选择（需点击搜索按钮）
+- 作者筛选框选择（需点击搜索按钮）
+- 开始日期选择（需点击搜索按钮）
+- 结束日期选择（需点击搜索按钮）
+
+### 使用方法
+
+**基本搜索：**
+1. 在搜索框输入关键词 → 自动搜索（带防抖）
+2. 可勾选"精确搜索"选项匹配完整标题
+3. 点击"🔍 搜索"按钮应用筛选条件
+
+**高级筛选：**
+1. 点击"显示筛选"展开筛选面板
+2. 设置筛选条件：
+   - 视频分类
+   - 视频作者
+   - 时间范围（开始日期 - 结束日期）
+3. 点击"✨ 应用筛选"按钮执行搜索
+4. 可查看当前活动的筛选条件
+5. 使用"清空全部"按钮重置所有筛选
+
+**特点：**
+- ✅ 减少不必要的API请求
+- ✅ 更好的用户体验控制
+- ✅ 符合用户操作习惯
+- ✅ 支持多种筛选条件组合
+
 ## 封面提取功能 🎬
 
 **最新版本使用客户端封面提取**，无需服务端 ffmpeg 支持！
@@ -265,7 +333,7 @@ const thumbnail = await extractM3U8Thumbnail('https://example.com/video.m3u8', 1
 - email: 邮箱（唯一）
 - name: 用户名
 - password: 加密密码
-- role: 用户角色
+- role: 用户角色（user/admin）
 - createdAt: 创建时间
 - updatedAt: 更新时间
 
@@ -275,9 +343,19 @@ const thumbnail = await extractM3U8Thumbnail('https://example.com/video.m3u8', 1
 - title: 视频标题
 - description: 视频描述
 - m3u8Url: M3U8 链接
-- thumbnail: 封面图片链接
+- thumbnail: 封面图片链接（支持 Base64）
 - duration: 视频时长（秒）
+- author: 视频作者
+- category: 视频分类
 - userId: 上传用户 ID
+- createdAt: 创建时间
+- updatedAt: 更新时间
+
+### Category（分类）
+
+- id: 分类唯一标识
+- name: 分类名称
+- description: 分类描述
 - createdAt: 创建时间
 - updatedAt: 更新时间
 
@@ -300,9 +378,20 @@ const thumbnail = await extractM3U8Thumbnail('https://example.com/video.m3u8', 1
 
 ## 部署
 
-### 方式一：Docker 部署（推荐） 🐳
+### 方式一：GitHub Actions 自动化部署（推荐）🚀
 
-使用 Docker Compose 一键部署应用和数据库：
+配置 GitHub Actions 实现自动化构建和部署：
+
+1. **自动构建 Docker 镜像**：代码推送时自动构建
+2. **推送到 GitHub Container Registry**：统一管理镜像
+3. **自动部署到生产服务器**：SSH 连接服务器自动部署
+4. **多版本标签支持**：支持版本管理和回滚
+
+详细配置请查看：[GitHub Actions 部署指南](./GITHUB_ACTIONS_DEPLOYMENT.md)
+
+### 方式二：Docker 部署 🐳
+
+使用 Docker Compose 一键部署应用和 SQLite 数据库：
 
 **1. 生成密钥**
 
@@ -316,7 +405,10 @@ openssl rand -base64 32
 创建 `.env` 文件（或修改 `.env.example`）：
 
 ```bash
+DATABASE_URL="file:/app/data/app.db"
+BACKUP_DATABASE_URL="file:/app/data/app_backup.db"
 NEXTAUTH_SECRET=your-generated-secret-here
+NEXTAUTH_URL="http://localhost:3000"
 ```
 
 **3. 启动服务**
@@ -345,20 +437,20 @@ docker-compose down -v
 
 **Docker 部署说明：**
 - 应用运行在端口 `3000`
-- PostgreSQL 运行在端口 `5432`
-- 数据持久化在 Docker volume `postgres_data`
+- 使用 SQLite 数据库，数据持久化在 `./data` 目录
 - 自动运行数据库迁移和初始化
 - 自动创建默认管理员账号
+- 支持备份和恢复功能
 
 **自定义配置：**
 
 修改 `docker-compose.yml` 中的环境变量：
-- `POSTGRES_USER`: 数据库用户名
-- `POSTGRES_PASSWORD`: 数据库密码
-- `POSTGRES_DB`: 数据库名称
+- `DATABASE_URL`: SQLite 数据库路径
+- `BACKUP_DATABASE_URL`: 备份数据库路径
 - `NEXTAUTH_URL`: 应用访问地址（生产环境需修改）
+- `NEXTAUTH_SECRET`: NextAuth 密钥
 
-### 方式二：传统部署
+### 方式三：传统部署
 
 **构建生产版本**
 
@@ -372,7 +464,8 @@ npm start
 
 确保在生产环境中配置以下环境变量：
 
-- `DATABASE_URL`: PostgreSQL 连接字符串
+- `DATABASE_URL`: SQLite 数据库文件路径
+- `BACKUP_DATABASE_URL`: 备份数据库文件路径
 - `NEXTAUTH_URL`: 应用的 URL
 - `NEXTAUTH_SECRET`: NextAuth 密钥（使用 `openssl rand -base64 32` 生成）
 
@@ -380,8 +473,12 @@ npm start
 
 1. **CORS 问题**: 如果 M3U8 视频源有 CORS 限制，可能需要配置代理
 2. **视频格式**: 仅支持 HLS (M3U8) 格式
-3. **封面提取**: 完整的封面提取功能需要服务器端 ffmpeg 支持
-4. **性能优化**: 大量视频时建议添加缓存和 CDN
+3. **封面提取**: 使用客户端提取，无需服务器端 ffmpeg 支持
+4. **性能优化**:
+   - 使用 SQLite 数据库，适合中小规模应用
+   - 内置双层缓存系统，优化访问速度
+   - 智能搜索防抖，减少服务器负载
+5. **数据备份**: 支持数据库备份和恢复功能
 
 ## 许可证
 
